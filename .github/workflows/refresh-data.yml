@@ -1,0 +1,40 @@
+name: Rafraîchissement quotidien des données
+
+on:
+  schedule:
+    - cron: "20 4 * * *" # tous les jours à 04:20 UTC (heure creuse, gentil avec les sources)
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Statuts Invader Spotter (scraping poli, 1 passe)
+        run: node scripts/fetch-spotter.mjs
+      - name: Fusion des sources et génération des données
+        run: node scripts/build-data.mjs
+      - name: Contrôles d'invariants
+        run: node scripts/check-data.mjs
+      - name: Commit si les données ont changé
+        run: |
+          git config user.name "invader-radar-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add public/data
+          if ! git diff --cached --quiet; then
+            git commit -m "data: rafraîchissement quotidien $(date -u +%F)"
+            git push
+            # un push fait par GITHUB_TOKEN ne déclenche pas les autres workflows → on lance le déploiement explicitement
+            gh workflow run deploy.yml
+          else
+            echo "Aucun changement aujourd'hui."
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}
