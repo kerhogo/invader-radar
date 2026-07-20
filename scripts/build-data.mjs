@@ -10,7 +10,7 @@
  * Produit : public/data/{invaders.json, cities.json intégré, meta.json, changelog.json, zones/*.geojson}
  * Usage : node scripts/build-data.mjs [--offline] (--offline : n'utilise que le cache .cache/)
  */
-import { mkdir, readFile, writeFile, access } from "node:fs/promises";
+import { mkdir, readFile, writeFile, access, readdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -310,54 +310,33 @@ async function main() {
   }
   console.log(`Zonage Paris : ${zoned} invaders affectés à un quartier`);
 
-  // Sous-découpage des autres villes : grille de rectangles alignée sur une
-  // trame mondiale fixe — lisible partout, contrairement aux frontières
-  // administratives locales, très irrégulières hors Paris.
-  const CELL_Z1 = 0.006;  // ~670 m de côté en latitude
-  const CELL_Z2 = 0.018;  // ~2 km
-  const zonedCities = new Set(["PA"]);
-  const gridFiles = new Map();
-  const byCityLoc = new Map();
-  for (const inv of items.values()) {
-    if (inv.city === "PA" || inv.lat === undefined) continue;
-    (byCityLoc.get(inv.city) ?? byCityLoc.set(inv.city, []).get(inv.city)).push(inv);
-  }
-  const colLetter = n => { let s = ""; do { s = String.fromCharCode(65 + (n % 26)) + s; n = Math.floor(n / 26) - 1; } while (n >= 0); return s; };
-  for (const [code, invs] of byCityLoc) {
-    if (invs.length < 3) continue;
-    const latC = invs.reduce((a, i) => a + i.lat, 0) / invs.length;
-    const makeGrid = (cellLat, key) => {
-      const cellLng = cellLat / Math.max(0.2, Math.cos((latC * Math.PI) / 180));
-      const cells = new Map();
-      for (const inv of invs) {
-        const cx = Math.floor(inv.lng / cellLng);
-        const cy = Math.floor(inv.lat / cellLat);
-        const k = `${cx}|${cy}`;
-        (cells.get(k) ?? cells.set(k, { cx, cy, members: [] }).get(k)).members.push(inv);
+  // Sous-découpage des autres villes : vraies frontières administratives
+  // (fichiers générés par scripts/fetch-zones.mjs et commités — les limites
+  // admin bougent rarement, la CI quotidienne ne les régénère pas)
+  const zoneFiles = await readdir(join(OUT, "zones")).catch(() => []);
+  const zonedCities = new Set(
+    zoneFiles.filter(f => f.endsWith("-z1.geojson")).map(f => f.split("-")[0])
+  );
+  zonedCities.add("PA");
+  for (const code of zonedCities) {
+    if (code === "PA") continue; // quartiers officiels + banlieue déjà affectés
+    let gz1 = null, gz2 = null;
+    try { gz1 = JSON.parse(await readFile(join(OUT, "zones", `${code}-z1.geojson`), "utf8")); } catch { continue; }
+    try { gz2 = JSON.parse(await readFile(join(OUT, "zones", `${code}-z2.geojson`), "utf8")); } catch { /* pas de niveau moyen */ }
+    let n = 0;
+    for (const inv of items.values()) {
+      if (inv.city !== code || inv.lat === undefined) continue;
+      for (const f of gz1.features) {
+        if (pointInGeometry(inv.lng, inv.lat, f.geometry)) { inv.z1 = f.properties.name; n++; break; }
       }
-      const minCx = Math.min(...[...cells.values()].map(c => c.cx));
-      const maxCy = Math.max(...[...cells.values()].map(c => c.cy));
-      const rnd = x => Math.round(x * 1e5) / 1e5;
-      const features = [];
-      for (const c of cells.values()) {
-        const name = `Zone ${colLetter(c.cx - minCx)}${maxCy - c.cy + 1}`;
-        const w = c.cx * cellLng, s = c.cy * cellLat;
-        features.push({
-          type: "Feature",
-          geometry: {
-            type: "Polygon",
-            coordinates: [[[rnd(w), rnd(s)], [rnd(w + cellLng), rnd(s)], [rnd(w + cellLng), rnd(s + cellLat)], [rnd(w), rnd(s + cellLat)], [rnd(w), rnd(s)]]]
-          },
-          properties: { name }
-        });
-        for (const inv of c.members) inv[key] = name;
+      if (gz2) {
+        for (const f of gz2.features) {
+          if (pointInGeometry(inv.lng, inv.lat, f.geometry)) { inv.z2 = f.properties.name; break; }
+        }
       }
-      return { type: "FeatureCollection", features };
-    };
-    gridFiles.set(code, { z1: makeGrid(CELL_Z1, "z1"), z2: makeGrid(CELL_Z2, "z2") });
-    zonedCities.add(code);
+    }
+    console.log(`Zonage ${code} : ${n} invaders affectés`);
   }
-  console.log(`Grilles générées : ${gridFiles.size} villes`);
 
   // Référentiel villes : noms + dénominateurs officiels via Invader Spotter,
   // repli sur la table curée. Seules les villes de l'univers officiel existent ici.
@@ -432,10 +411,6 @@ async function main() {
   await writeFile(join(OUT, "changelog.json"), JSON.stringify(changelog));
   await writeFile(join(OUT, "zones", "PA-z1.geojson"), JSON.stringify(zones.z1));
   await writeFile(join(OUT, "zones", "PA-z2.geojson"), JSON.stringify(zones.z2));
-  for (const [code, g] of gridFiles) {
-    await writeFile(join(OUT, "zones", `${code}-z1.geojson`), JSON.stringify(g.z1));
-    await writeFile(join(OUT, "zones", `${code}-z2.geojson`), JSON.stringify(g.z2));
-  }
 
   const count = (fn) => outItems.filter(fn).length;
   const meta = {
