@@ -1,7 +1,7 @@
 import { state, saveSettings } from "./state";
 import { isActive, isFlashed, loadZones, zoneStats } from "./data";
 import { haversine, pointInGeometry } from "./geo";
-import { heat, heatColor, ringSize, tickInterval, D_COLD } from "./calibration";
+import { heat, heatColor, ringSize, tickInterval } from "./calibration";
 import { fmt } from "./dashboard";
 
 const el = () => document.getElementById("view-hunt")!;
@@ -12,10 +12,19 @@ let wakeLock: any = null;
 let audioCtx: AudioContext | null = null;
 let tickTimer: number | null = null;
 let currentHeat = 0;
-let lastPos: GeolocationPosition | null = null;
+let bestFix: { pos: GeolocationPosition; at: number } | null = null;
 const trail: Array<{ lat: number; lng: number }> = [];
 
-const PRESETS = [50, 150, 300];
+/* Rayon : curseur logarithmique 3 m → 1 km (précis sur les petites valeurs). */
+const R_MIN = 3, R_MAX = 1000;
+function toRadius(v: number): number {
+  const r = R_MIN * Math.pow(R_MAX / R_MIN, v / 100);
+  return r < 20 ? Math.round(r) : r < 100 ? Math.round(r / 5) * 5 : Math.round(r / 10) * 10;
+}
+function fromRadius(r: number): number {
+  const c = Math.min(R_MAX, Math.max(R_MIN, r));
+  return Math.round((100 * Math.log(c / R_MIN)) / Math.log(R_MAX / R_MIN));
+}
 
 /* Sprite invader pixel-art (dessin maison). */
 const SPRITE = [
@@ -45,12 +54,11 @@ export function hide(): void {
 }
 
 function render(): void {
-  const r = state.settings.radius;
+  const r = Math.max(R_MIN, state.settings.radius);
   el().innerHTML = `
     <div id="hunt-screen">
       <div class="hunt-top">
         <span class="gps-chip" id="gps-chip">📡 Radar en veille</span>
-        <p class="hunt-status" id="hunt-status">Appuie sur Démarrer et pars marcher.<br>Aucune direction — juste chaud ou froid.</p>
       </div>
 
       <div class="radar-zone">
@@ -73,10 +81,7 @@ function render(): void {
       <div class="hunt-controls">
         <div class="field">
           <label>Rayon de détection : <b id="radius-label">${r} m</b></label>
-          <input type="range" id="radius-slider" min="10" max="1000" step="10" value="${r}" />
-          <div class="seg" id="radius-presets" style="margin-top:6px">
-            ${PRESETS.map(p => `<button data-r="${p}" class="${p === r ? "active" : ""}">${p} m</button>`).join("")}
-          </div>
+          <input type="range" id="radius-slider" min="0" max="100" step="1" value="${fromRadius(r)}" />
         </div>
         <button class="btn" id="btn-hunt">Démarrer la chasse</button>
       </div>
@@ -92,43 +97,32 @@ function wire(): void {
   const label = root.querySelector<HTMLElement>("#radius-label")!;
 
   slider.addEventListener("input", () => {
-    label.textContent = `${slider.value} m`;
-    syncPresets(Number(slider.value));
+    label.textContent = `${toRadius(Number(slider.value))} m`;
   });
   slider.addEventListener("change", () => {
-    saveSettings({ radius: Number(slider.value) });
-    if (lastPos) update(lastPos);
-  });
-  root.querySelector<HTMLElement>("#radius-presets")!.addEventListener("click", ev => {
-    const btn = (ev.target as HTMLElement).closest("button");
-    if (!btn) return;
-    const v = Number(btn.dataset.r);
-    slider.value = String(v);
-    label.textContent = `${v} m`;
-    saveSettings({ radius: v });
-    syncPresets(v);
-    if (lastPos) update(lastPos);
+    saveSettings({ radius: toRadius(Number(slider.value)) });
+    if (bestFix) update(bestFix.pos);
   });
   root.querySelector<HTMLButtonElement>("#btn-hunt")!.addEventListener("click", () => {
     running ? stop(true) : start();
   });
+}
 
-  function syncPresets(v: number): void {
-    root.querySelectorAll<HTMLButtonElement>("#radius-presets button").forEach(b =>
-      b.classList.toggle("active", Number(b.dataset.r) === v)
-    );
-  }
+function setChip(text: string, warn = false): void {
+  const chip = el().querySelector<HTMLElement>("#gps-chip");
+  if (chip) { chip.textContent = text; chip.classList.toggle("warn", warn); }
 }
 
 function start(): void {
   if (!("geolocation" in navigator)) {
-    setStatus("La géolocalisation n'est pas disponible sur cet appareil.");
+    setChip("⚠️ Géolocalisation indisponible", true);
     return;
   }
   running = true;
   trail.length = 0;
+  bestFix = null;
   el().querySelector<HTMLButtonElement>("#btn-hunt")!.textContent = "Terminer la chasse";
-  setStatus("Recherche du signal GPS…");
+  setChip("🛰️ Calage GPS…");
 
   // Contexte audio créé dans le geste utilisateur (exigence iOS)
   if (state.settings.sounds && !audioCtx) {
@@ -137,11 +131,11 @@ function start(): void {
   audioCtx?.resume().catch(() => {});
   requestWakeLock();
 
-  watchId = navigator.geolocation.watchPosition(update, err => {
-    setStatus(err.code === err.PERMISSION_DENIED
-      ? "Autorise la localisation dans Réglages → Safari → Position."
-      : "Signal GPS introuvable pour l'instant…");
-  }, { enableHighAccuracy: true, maximumAge: 2000, timeout: 15000 });
+  watchId = navigator.geolocation.watchPosition(onFix, err => {
+    setChip(err.code === err.PERMISSION_DENIED
+      ? "⚠️ Localisation refusée (Réglages → Safari)"
+      : "🛰️ Signal GPS introuvable…", true);
+  }, { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 });
 
   document.addEventListener("visibilitychange", onVisibility);
   scheduleTick();
@@ -159,8 +153,7 @@ function stop(showSummary: boolean): void {
 
   const btn = el().querySelector<HTMLButtonElement>("#btn-hunt");
   if (btn) btn.textContent = "Démarrer la chasse";
-  const chip = el().querySelector<HTMLElement>("#gps-chip");
-  if (chip) { chip.textContent = "📡 Radar en veille"; chip.classList.remove("warn"); }
+  setChip("📡 Radar en veille");
   const nearest = el().querySelector<HTMLElement>("#nearest-line");
   if (nearest) nearest.textContent = "";
   paint(0, null);
@@ -195,15 +188,25 @@ function targets() {
 
 /** Distance arrondie pour l'affichage (pas de fausse précision GPS). */
 function fuzzyDistance(d: number): string {
-  if (d < 15) return "moins de 15 m";
+  if (d < 5) return "moins de 5 m";
   if (d < 100) return `~${Math.round(d / 5) * 5} m`;
   if (d < 1000) return `~${Math.round(d / 10) * 10} m`;
   return `~${(d / 1000).toFixed(1).replace(".", ",")} km`;
 }
 
+/** Le premier fix iOS est souvent grossier (réseau/wifi) : on garde le plus
+    précis des 12 dernières secondes, le temps que le GPS se cale. */
+function onFix(pos: GeolocationPosition): void {
+  if (!running) return;
+  const now = Date.now();
+  if (!bestFix || pos.coords.accuracy <= bestFix.pos.coords.accuracy || now - bestFix.at > 12000) {
+    bestFix = { pos, at: now };
+  }
+  update(bestFix.pos);
+}
+
 function update(pos: GeolocationPosition): void {
   if (!running) return;
-  lastPos = pos;
   const { latitude: lat, longitude: lng, accuracy } = pos.coords;
 
   // trace locale pour le bilan de balade (jamais envoyée nulle part)
@@ -236,25 +239,9 @@ function update(pos: GeolocationPosition): void {
       : "Aucun invader à trouver à moins de 5 km";
   }
 
-  const chip = el().querySelector<HTMLElement>("#gps-chip");
-  if (chip) {
-    chip.textContent = `📡 GPS ±${Math.round(accuracy)} m`;
-    chip.classList.toggle("warn", accuracy > radius);
-  }
-
-  if (accuracy > radius) {
-    setStatus(`Précision GPS (±${Math.round(accuracy)} m) plus large que ton rayon — les compteurs peuvent fluctuer.`);
-  } else if (toFind > 0) {
-    setStatus(currentHeat > 0.75 ? "Brûlant — ouvre l'œil, il est tout près !" :
-      currentHeat > 0.4 ? "Ça chauffe sérieusement…" :
-      `${toFind} à débusquer dans le rayon. Continue !`);
-  } else if (total > 0) {
-    setStatus("Tout est déjà flashé dans ce rayon — élargis ou change de rue !");
-  } else {
-    setStatus(nearest > D_COLD * 4 || !Number.isFinite(nearest)
-      ? "Zone calme. Rapproche-toi d'un quartier plus dense."
-      : "Rien dans le rayon… mais ce n'est pas loin.");
-  }
+  const acc = Math.round(accuracy);
+  if (accuracy > 150) setChip(`🛰️ Calage GPS… ±${acc} m`);
+  else setChip(`📡 GPS ±${acc} m`, accuracy > Math.max(radius, 15));
 }
 
 function paint(t: number, counts: { toFind: number; total: number; indoor: number } | null): void {
@@ -275,11 +262,6 @@ function paint(t: number, counts: { toFind: number; total: number; indoor: numbe
   set("#c-tofind", counts ? fmt(counts.toFind) : "–");
   set("#c-indoor", counts ? fmt(counts.indoor) : "–");
   set("#c-total", counts ? fmt(counts.total) : "–");
-}
-
-function setStatus(msg: string): void {
-  const n = el().querySelector<HTMLElement>("#hunt-status");
-  if (n) n.innerHTML = msg;
 }
 
 /* ---------- Son « compteur Geiger » ---------- */

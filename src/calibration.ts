@@ -8,8 +8,8 @@
 
 /** Distance (m) au-delà de laquelle le radar est totalement froid. */
 export const D_COLD = 100;
-/** Distance (m) de chaleur maximale (précision GPS oblige, inutile en dessous). */
-export const D_HOT = 5;
+/** Distance (m) de chaleur maximale — le radar reste réactif jusqu'à ~3 m. */
+export const D_HOT = 3;
 /** Pivot de la courbe : à cette distance on est à ~50 % de chaleur. */
 export const D_MID = 30;
 

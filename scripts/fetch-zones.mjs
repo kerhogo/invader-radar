@@ -1,20 +1,16 @@
 /**
- * Génère les sous-découpages administratifs (z1 fin / z2 moyen) pour chaque
- * ville invadée, depuis les limites administratives OSM (Overpass).
+ * Génère public/data/zones/PA-suburbs.geojson : les communes de banlieue
+ * (Meudon, Aubervilliers, Vincennes…) qui abritent des invaders « PA » situés
+ * hors des 80 quartiers intra-muros. Fusionnées ensuite par build-data.mjs
+ * dans PA-z1/PA-z2 pour que la banlieue soit visible sur la carte.
  *
- * Pour chaque ville (hors Paris, qui utilise les quartiers officiels opendata) :
- *  - bbox des invaders localisés de la ville (+ marge)
- *  - récupère les relations admin_level 7 à 10 de la bbox
- *  - choisit le niveau le plus fin couvrant ≥ 50 % des invaders comme z1,
- *    et un niveau plus large comme z2 s'il existe
- *  - ne garde que les polygones contenant au moins un invader (fichiers légers)
+ * Les autres villes utilisent des grilles de rectangles générées directement
+ * par build-data.mjs (aucun appel réseau).
  *
- * Les fichiers sont écrits dans public/data/zones/ et COMMITÉS : les limites
- * administratives bougent rarement, la CI quotidienne ne relance pas ce script.
- *
- * Usage : node scripts/fetch-zones.mjs [--force] [--city=LY]
+ * Une seule requête Overpass, résultat commité (les limites bougent rarement).
+ * Usage : node scripts/fetch-zones.mjs
  */
-import { mkdir, readFile, writeFile, access } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import osmtogeojson from "osmtogeojson";
@@ -23,8 +19,6 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const OUT = join(ROOT, "public", "data", "zones");
 const OVERPASS = "https://overpass-api.de/api/interpreter";
 const UA = "InvaderRadar-DataPipeline/0.1 (projet perso non commercial)";
-const FORCE = process.argv.includes("--force");
-const onlyCity = process.argv.find(a => a.startsWith("--city="))?.split("=")[1];
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 function inRing(lng, lat, ring) {
@@ -60,18 +54,15 @@ function roundCoords(geom, digits = 5) {
   return { type: geom.type, coordinates: walk(geom.coordinates) };
 }
 
-async function fetchAdmin(bbox) {
-  const [s, w, n, e] = bbox;
-  const q = `[out:json][timeout:120];rel["boundary"="administrative"]["admin_level"~"^(7|8|9|10)$"](${s},${w},${n},${e});out tags geom;`;
-  // Overpass sature vite (429/504) : retry patient avec backoff progressif
+async function overpass(query) {
   for (let attempt = 1; ; attempt++) {
     const res = await fetch(OVERPASS, {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded", "User-Agent": UA },
-      body: "data=" + encodeURIComponent(q)
+      body: "data=" + encodeURIComponent(query)
     });
     if (res.ok) return res.json();
-    if (attempt >= 4) throw new Error(`Overpass HTTP ${res.status} (après ${attempt} essais)`);
+    if (attempt >= 5) throw new Error(`Overpass HTTP ${res.status} (après ${attempt} essais)`);
     const wait = 25000 * attempt;
     console.log(`  … HTTP ${res.status}, nouvel essai dans ${wait / 1000}s`);
     await sleep(wait);
@@ -80,87 +71,49 @@ async function fetchAdmin(bbox) {
 
 async function main() {
   await mkdir(OUT, { recursive: true });
+
+  // Quartiers intra-muros (cache du pipeline, sinon opendata)
+  let quartiers;
+  try {
+    quartiers = JSON.parse(await readFile(join(ROOT, ".cache", "quartiers.geojson"), "utf8"));
+  } catch {
+    const res = await fetch("https://opendata.paris.fr/api/explore/v2.1/catalog/datasets/quartier_paris/exports/geojson", {
+      headers: { "User-Agent": UA }
+    });
+    quartiers = await res.json();
+  }
+
   const ds = JSON.parse(await readFile(join(ROOT, "public", "data", "invaders.json"), "utf8"));
+  const pa = ds.items.filter(i => i.city === "PA" && i.lat !== undefined);
+  const outside = pa.filter(inv => !quartiers.features.some(f => pointInGeometry(inv.lng, inv.lat, f.geometry)));
+  console.log(`Invaders PA hors intra-muros : ${outside.length}/${pa.length}`);
+  if (outside.length === 0) return;
 
-  const byCity = new Map();
-  for (const inv of ds.items) {
-    if (inv.lat === undefined) continue;
-    (byCity.get(inv.city) ?? byCity.set(inv.city, []).get(inv.city)).push(inv);
+  const lats = outside.map(i => i.lat), lngs = outside.map(i => i.lng);
+  const bbox = `${Math.min(...lats) - 0.02},${Math.min(...lngs) - 0.02},${Math.max(...lats) + 0.02},${Math.max(...lngs) + 0.02}`;
+  console.log(`Requête Overpass communes (bbox ${bbox})…`);
+  const gj = osmtogeojson(await overpass(`[out:json][timeout:180];rel["boundary"="administrative"]["admin_level"="8"](${bbox});out tags geom;`));
+
+  const kept = [];
+  for (const f of gj.features) {
+    const name = f.properties?.name;
+    if (!name || name === "Paris" || !/Polygon/.test(f.geometry?.type ?? "")) continue;
+    const count = outside.filter(inv => pointInGeometry(inv.lng, inv.lat, f.geometry)).length;
+    if (count > 0) kept.push({ f, name, count });
   }
+  kept.sort((a, b) => b.count - a.count);
+  console.log(`Communes retenues : ${kept.length} — ${kept.slice(0, 8).map(k => `${k.name} (${k.count})`).join(", ")}…`);
 
-  for (const [code, invs] of byCity) {
-    if (code === "PA" || invs.length < 8) continue;
-    if (onlyCity && code !== onlyCity) continue;
-
-    const z1Path = join(OUT, `${code}-z1.geojson`);
-    if (!FORCE) {
-      try { await access(z1Path); console.log(`${code} : déjà présent, sauté`); continue; } catch { /* absent */ }
-    }
-
-    const lats = invs.map(i => i.lat), lngs = invs.map(i => i.lng);
-    const bbox = [
-      Math.min(...lats) - 0.03, Math.min(...lngs) - 0.03,
-      Math.max(...lats) + 0.03, Math.max(...lngs) + 0.03
-    ];
-
-    let gj;
-    try {
-      gj = osmtogeojson(await fetchAdmin(bbox));
-    } catch (err) {
-      console.warn(`${code} : Overpass KO (${err.message}), sauté`);
-      await sleep(4000);
-      continue;
-    }
-
-    // groupe par admin_level, ne garde que Polygon/MultiPolygon nommés
-    const byLevel = new Map();
-    for (const f of gj.features) {
-      const p = f.properties ?? {};
-      const lvl = Number(p.admin_level);
-      const name = p.name;
-      if (!name || !lvl || !/Polygon/.test(f.geometry?.type ?? "")) continue;
-      (byLevel.get(lvl) ?? byLevel.set(lvl, []).get(lvl)).push(f);
-    }
-
-    // score par niveau : couverture des invaders + nombre de polygones utiles
-    const scored = [];
-    for (const [lvl, feats] of byLevel) {
-      const used = new Map(); // feature → nb invaders
-      let covered = 0;
-      for (const inv of invs) {
-        for (const f of feats) {
-          if (pointInGeometry(inv.lng, inv.lat, f.geometry)) {
-            covered++;
-            used.set(f, (used.get(f) ?? 0) + 1);
-            break;
-          }
-        }
-      }
-      scored.push({ lvl, coverage: covered / invs.length, polys: used.size, feats: [...used.keys()] });
-    }
-    scored.sort((a, b) => b.lvl - a.lvl); // du plus fin au plus large
-
-    const z1 = scored.find(s => s.coverage >= 0.5 && s.polys >= 2);
-    if (!z1) { console.log(`${code} : pas de découpage exploitable (${scored.map(s => `L${s.lvl}:${s.polys}p/${Math.round(s.coverage * 100)}%`).join(" ")})`); await sleep(2500); continue; }
-    const z2 = scored.find(s => s.lvl < z1.lvl && s.coverage >= 0.5 && s.polys >= 2);
-
-    const write = async (level, chosen) => {
-      const fc = {
-        type: "FeatureCollection",
-        features: chosen.feats.map(f => ({
-          type: "Feature",
-          geometry: roundCoords(f.geometry),
-          properties: { name: f.properties.name }
-        }))
-      };
-      await writeFile(join(OUT, `${code}-${level}.geojson`), JSON.stringify(fc));
-    };
-    await write("z1", z1);
-    if (z2) await write("z2", z2);
-    console.log(`${code} : z1=admin_level ${z1.lvl} (${z1.polys} zones, ${Math.round(z1.coverage * 100)}%)${z2 ? `, z2=admin_level ${z2.lvl} (${z2.polys})` : ""}`);
-    await sleep(4000);
-  }
-  console.log("✔ Zones générées");
+  const fc = {
+    type: "FeatureCollection",
+    features: kept.map(k => ({
+      type: "Feature",
+      geometry: roundCoords(k.f.geometry),
+      properties: { name: k.name }
+    }))
+  };
+  await writeFile(join(OUT, "PA-suburbs.geojson"), JSON.stringify(fc));
+  console.log(`✔ PA-suburbs.geojson : ${fc.features.length} communes`);
 }
 
 main().catch(err => { console.error(err); process.exit(1); });

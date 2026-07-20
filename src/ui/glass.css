@@ -15,9 +15,9 @@
   --text-3: rgba(199, 216, 245, 0.34);
   --separator: rgba(148, 180, 232, 0.16);
 
-  --accent: #ffb340;          /* ambre — action, chaleur */
-  --accent-ink: #241300;
-  --accent-soft: rgba(255, 179, 64, 0.16);
+  --accent: #38a8ff;          /* bleu néon — action, signal */
+  --accent-ink: #04101f;
+  --accent-soft: rgba(56, 168, 255, 0.16);
   --ice: #7cc7ff;             /* glace — signal, liens */
   --ice-soft: rgba(124, 199, 255, 0.14);
   --ok: #30d158;
@@ -210,10 +210,7 @@ body {
 .stat {
   flex: 1;
   text-align: center;
-  padding: 12px 4px 10px;
-  border-radius: var(--radius-s);
-  background: rgba(124, 199, 255, 0.07);
-  border: 0.5px solid rgba(124, 199, 255, 0.08);
+  padding: 6px 2px;
 }
 .stat b {
   display: block;
@@ -253,7 +250,7 @@ body {
   display: block;
   height: 100%;
   border-radius: 3px;
-  background: linear-gradient(90deg, #e08a1e, var(--accent));
+  background: linear-gradient(90deg, #1f7fd6, var(--accent));
   transition: width 0.5s cubic-bezier(0.22, 1, 0.36, 1);
 }
 .progress.done i { background: linear-gradient(90deg, #23b34a, var(--ok)); }
@@ -273,11 +270,10 @@ body {
   font-weight: 800;
   cursor: pointer;
   transition: transform 0.15s ease, filter 0.15s ease;
-  box-shadow: 0 6px 22px rgba(255, 179, 64, 0.28);
 }
 .btn:active { transform: scale(0.98); filter: brightness(1.08); }
-.btn.secondary { background: var(--accent-soft); color: var(--accent); box-shadow: none; }
-.btn.destructive { background: transparent; color: var(--bad); box-shadow: none; }
+.btn.secondary { background: var(--accent-soft); color: var(--accent); }
+.btn.destructive { background: transparent; color: var(--bad); }
 
 .field { margin: 10px 0; }
 .field label { display: block; font-size: 13px; font-weight: 600; color: var(--text-2); margin-bottom: 6px; }
@@ -475,8 +471,7 @@ a { color: var(--ice); }
   color: #fff;
 }
 
-.hunt-top { min-height: 74px; }
-#hunt-screen .hunt-status { font-size: 14px; font-weight: 600; opacity: 0.85; margin-top: 10px; line-height: 1.4; }
+.hunt-top { padding-top: 4px; }
 
 .radar-zone {
   flex: 1;
@@ -484,11 +479,11 @@ a { color: var(--ice); }
   width: 100%;
   display: grid;
   place-items: center;
-  padding: 6px 0;
+  padding: 4px 0 14px;
 }
 .radar-stage {
   position: relative;
-  height: min(100%, min(76vw, 380px));
+  height: min(100%, min(72vw, 350px));
   aspect-ratio: 1;
   display: grid;
   place-items: center;
@@ -499,7 +494,7 @@ a { color: var(--ice); }
   margin: auto;
   border-radius: 50%;
   border: 2.5px solid rgba(255, 255, 255, 0.85);
-  box-shadow: 0 0 26px rgba(255, 255, 255, 0.22), 0 0 50px rgba(255,255,255,0.07) inset;
+  box-shadow: 0 0 16px rgba(255, 255, 255, 0.16), 0 0 30px rgba(255,255,255,0.05) inset;
   transition: width 0.7s cubic-bezier(0.22, 1, 0.36, 1), height 0.7s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.4s;
 }
 .radar-pulse {
@@ -527,44 +522,32 @@ a { color: var(--ice); }
 }
 
 .nearest {
-  font-size: 13px;
+  font-size: 13.5px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
-  color: rgba(255, 255, 255, 0.85);
+  color: rgba(255, 255, 255, 0.88);
   min-height: 18px;
   letter-spacing: 0.2px;
+  margin-bottom: 2px;
 }
 
 .hunt-counts {
   display: flex;
-  gap: 10px;
   width: 100%;
-  max-width: 460px;
+  max-width: 440px;
+  border-top: 0.5px solid rgba(255, 255, 255, 0.14);
+  padding-top: 10px;
 }
-.hunt-counts .stat {
-  background: rgba(255, 255, 255, 0.1);
-  border: 0.5px solid rgba(255, 255, 255, 0.1);
-  color: #fff;
-  -webkit-backdrop-filter: blur(14px);
-  backdrop-filter: blur(14px);
-}
-.hunt-counts .stat span { color: rgba(255, 255, 255, 0.72); }
+.hunt-counts .stat { color: #fff; }
+.hunt-counts .stat span { color: rgba(255, 255, 255, 0.68); }
 
 .hunt-controls {
   width: 100%;
-  max-width: 460px;
-  padding: 12px 16px;
-  border-radius: var(--radius);
-  background: rgba(255, 255, 255, 0.09);
-  -webkit-backdrop-filter: blur(18px) saturate(150%);
-  backdrop-filter: blur(18px) saturate(150%);
-  border: 0.5px solid rgba(255, 255, 255, 0.16);
+  max-width: 440px;
+  padding: 0 4px;
 }
-.hunt-controls .field { margin: 4px 0 8px; }
+.hunt-controls .field { margin: 0 0 6px; }
 .hunt-controls .field label { color: rgba(255, 255, 255, 0.75); }
-.hunt-controls .seg { background: rgba(255,255,255,0.14); }
-.hunt-controls .seg button { color: rgba(255,255,255,0.8); }
-.hunt-controls .seg button.active { background: rgba(255,255,255,0.92); color: #10254a; }
 
 .gps-chip {
   display: inline-flex;

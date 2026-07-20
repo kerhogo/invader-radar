@@ -37,7 +37,7 @@ const byQuartier = new Map();
 for (const i of paZoned) byQuartier.set(i.z1, (byQuartier.get(i.z1) ?? 0) + 1);
 const sumQ = [...byQuartier.values()].reduce((a, b) => a + b, 0);
 check("Σ quartiers == actifs localisés zonés", sumQ === paZoned.length, `${sumQ} vs ${paZoned.length}`);
-check("Nombre de quartiers parisiens plausible", byQuartier.size >= 60 && byQuartier.size <= 90, `${byQuartier.size} quartiers`);
+check("Nombre de zones parisiennes plausible (quartiers + communes banlieue)", byQuartier.size >= 60 && byQuartier.size <= 160, `${byQuartier.size} zones`);
 
 // Échantillons connus
 const pa92 = items.find(i => i.id === "PA_92");
@@ -54,8 +54,8 @@ console.log(`  (villes sans nom d'affichage : ${unnamed.map(([c]) => c).join(", 
 // Zones GeoJSON
 const z1 = JSON.parse(await readFile(join(ROOT, "public/data/zones/PA-z1.geojson"), "utf8"));
 const z2 = JSON.parse(await readFile(join(ROOT, "public/data/zones/PA-z2.geojson"), "utf8"));
-check("80 quartiers dans PA-z1.geojson", z1.features.length === 80, String(z1.features.length));
-check("20 arrondissements dans PA-z2.geojson", z2.features.length === 20, String(z2.features.length));
+check("PA-z1 : 80 quartiers + communes de banlieue", z1.features.length >= 80, String(z1.features.length));
+check("PA-z2 : 20 arrondissements + communes de banlieue", z2.features.length >= 20, String(z2.features.length));
 
 // Croisement galerie officielle
 if (uid) {
