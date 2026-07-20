@@ -48,35 +48,37 @@ function render(): void {
   const r = state.settings.radius;
   el().innerHTML = `
     <div id="hunt-screen">
-      <div>
+      <div class="hunt-top">
         <span class="gps-chip" id="gps-chip">📡 Radar en veille</span>
-        <p class="hunt-status mt" id="hunt-status">Appuie sur Démarrer et pars marcher.<br>Aucune direction, aucune carte — juste chaud ou froid.</p>
+        <p class="hunt-status" id="hunt-status">Appuie sur Démarrer et pars marcher.<br>Aucune direction — juste chaud ou froid.</p>
       </div>
 
-      <div class="radar-stage" id="radar-stage">
-        <div class="radar-pulse" style="animation-delay:0s"></div>
-        <div class="radar-pulse" style="animation-delay:1.3s"></div>
-        <div class="radar-ring" id="radar-ring"></div>
-        ${spriteSvg()}
-      </div>
-
-      <div style="width:100%;display:flex;flex-direction:column;align-items:center;gap:12px">
-        <div class="hunt-counts">
-          <div class="stat"><b id="c-tofind">–</b><span>à trouver</span></div>
-          <div class="stat"><b id="c-total">–</b><span>total rayon</span></div>
-          <div class="stat"><b id="c-indoor">–</b><span>en intérieur</span></div>
+      <div class="radar-zone">
+        <div class="radar-stage" id="radar-stage">
+          <div class="radar-pulse" style="animation-delay:0s"></div>
+          <div class="radar-pulse" style="animation-delay:1.3s"></div>
+          <div class="radar-ring" id="radar-ring"></div>
+          ${spriteSvg()}
         </div>
+      </div>
 
-        <div class="hunt-controls">
-          <div class="field">
-            <label>Rayon de détection : <b id="radius-label">${r} m</b></label>
-            <input type="range" id="radius-slider" min="10" max="1000" step="10" value="${r}" />
-            <div class="seg" id="radius-presets">
-              ${PRESETS.map(p => `<button data-r="${p}" class="${p === r ? "active" : ""}">${p} m</button>`).join("")}
-            </div>
+      <p class="nearest" id="nearest-line"></p>
+
+      <div class="hunt-counts">
+        <div class="stat"><b id="c-tofind">–</b><span>à trouver</span></div>
+        <div class="stat"><b id="c-indoor">–</b><span>dont intérieur</span></div>
+        <div class="stat"><b id="c-total">–</b><span>total rayon</span></div>
+      </div>
+
+      <div class="hunt-controls">
+        <div class="field">
+          <label>Rayon de détection : <b id="radius-label">${r} m</b></label>
+          <input type="range" id="radius-slider" min="10" max="1000" step="10" value="${r}" />
+          <div class="seg" id="radius-presets" style="margin-top:6px">
+            ${PRESETS.map(p => `<button data-r="${p}" class="${p === r ? "active" : ""}">${p} m</button>`).join("")}
           </div>
-          <button class="btn" id="btn-hunt" style="margin-top:10px">Démarrer la chasse</button>
         </div>
+        <button class="btn" id="btn-hunt">Démarrer la chasse</button>
       </div>
     </div>
   `;
@@ -159,6 +161,8 @@ function stop(showSummary: boolean): void {
   if (btn) btn.textContent = "Démarrer la chasse";
   const chip = el().querySelector<HTMLElement>("#gps-chip");
   if (chip) { chip.textContent = "📡 Radar en veille"; chip.classList.remove("warn"); }
+  const nearest = el().querySelector<HTMLElement>("#nearest-line");
+  if (nearest) nearest.textContent = "";
   paint(0, null);
 
   if (showSummary && trail.length > 1) void walkSummary();
@@ -189,6 +193,14 @@ function targets() {
   return out;
 }
 
+/** Distance arrondie pour l'affichage (pas de fausse précision GPS). */
+function fuzzyDistance(d: number): string {
+  if (d < 15) return "moins de 15 m";
+  if (d < 100) return `~${Math.round(d / 5) * 5} m`;
+  if (d < 1000) return `~${Math.round(d / 10) * 10} m`;
+  return `~${(d / 1000).toFixed(1).replace(".", ",")} km`;
+}
+
 function update(pos: GeolocationPosition): void {
   if (!running) return;
   lastPos = pos;
@@ -216,6 +228,13 @@ function update(pos: GeolocationPosition): void {
 
   currentHeat = Number.isFinite(nearest) ? heat(nearest) : 0;
   paint(currentHeat, { toFind, total, indoor });
+
+  const nearestLine = el().querySelector<HTMLElement>("#nearest-line");
+  if (nearestLine) {
+    nearestLine.textContent = Number.isFinite(nearest) && nearest < 5000
+      ? `Le plus proche à trouver : ${fuzzyDistance(nearest)}`
+      : "Aucun invader à trouver à moins de 5 km";
+  }
 
   const chip = el().querySelector<HTMLElement>("#gps-chip");
   if (chip) {
@@ -254,8 +273,8 @@ function paint(t: number, counts: { toFind: number; total: number; indoor: numbe
     if (n) n.textContent = v;
   };
   set("#c-tofind", counts ? fmt(counts.toFind) : "–");
-  set("#c-total", counts ? fmt(counts.total) : "–");
   set("#c-indoor", counts ? fmt(counts.indoor) : "–");
+  set("#c-total", counts ? fmt(counts.total) : "–");
 }
 
 function setStatus(msg: string): void {

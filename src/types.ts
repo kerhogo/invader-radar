@@ -44,12 +44,13 @@ export interface Gallery {
 
 export interface ChangeEntry {
   date: string;                 // YYYY-MM-DD
-  type: "new_city" | "new_invader" | "status_change";
+  type: "new_city" | "new_invader" | "status_change" | "spotter_news";
   id?: string;
-  city: string;
+  city?: string;
   zone?: string;
   from?: Status;
   to?: Status;
+  text?: string;                // spotter_news : texte brut de la news (sans coordonnées)
 }
 
 export interface Settings {

@@ -10,7 +10,7 @@
  * Produit : public/data/{invaders.json, cities.json intégré, meta.json, changelog.json, zones/*.geojson}
  * Usage : node scripts/build-data.mjs [--offline] (--offline : n'utilise que le cache .cache/)
  */
-import { mkdir, readFile, writeFile, access } from "node:fs/promises";
+import { mkdir, readFile, writeFile, access, readdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -298,6 +298,31 @@ async function main() {
   }
   console.log(`Zonage Paris : ${zoned} invaders affectés à un quartier`);
 
+  // Zonage générique : toutes les villes ayant des polygones dans public/data/zones
+  // (générés par scripts/fetch-zones.mjs et commités — les limites admin bougent peu)
+  const zoneFiles = await readdir(join(OUT, "zones")).catch(() => []);
+  const zonedCities = new Set(zoneFiles.filter(f => f.endsWith("-z1.geojson")).map(f => f.split("-")[0]));
+  zonedCities.add("PA");
+  for (const code of zonedCities) {
+    if (code === "PA") continue; // quartiers officiels déjà affectés
+    let gz1 = null, gz2 = null;
+    try { gz1 = JSON.parse(await readFile(join(OUT, "zones", `${code}-z1.geojson`), "utf8")); } catch { continue; }
+    try { gz2 = JSON.parse(await readFile(join(OUT, "zones", `${code}-z2.geojson`), "utf8")); } catch { /* pas de niveau moyen */ }
+    let n = 0;
+    for (const inv of items.values()) {
+      if (inv.city !== code || inv.lat === undefined) continue;
+      for (const f of gz1.features) {
+        if (pointInGeometry(inv.lng, inv.lat, f.geometry)) { inv.z1 = f.properties.name; n++; break; }
+      }
+      if (gz2) {
+        for (const f of gz2.features) {
+          if (pointInGeometry(inv.lng, inv.lat, f.geometry)) { inv.z2 = f.properties.name; break; }
+        }
+      }
+    }
+    console.log(`Zonage ${code} : ${n} invaders affectés`);
+  }
+
   // Référentiel villes : noms + dénominateurs officiels via Invader Spotter,
   // repli sur la table curée. Seules les villes de l'univers officiel existent ici.
   const ref = spotter?.cities ?? {};
@@ -316,7 +341,7 @@ async function main() {
       lng: Math.round(avg(c.lngs) * 1e5) / 1e5,
       count: c.count,
       ...(ref[code]?.official ? { official: ref[code].official } : {}),
-      ...(code === "PA" ? { zones: true } : {})
+      ...(zonedCities.has(code) ? { zones: true } : {})
     };
   }
 
@@ -346,6 +371,19 @@ async function main() {
     // anti-spoiler : les entrées du changelog ne portent jamais de coordonnées
     changelog.entries = [...fresh, ...changelog.entries.filter(e => e.date !== today)].slice(0, 400);
     console.log(`Changelog : ${fresh.length} événements aujourd'hui`);
+  }
+
+  // News Invader Spotter (texte brut, jamais de coordonnées) → onglet Quoi de neuf
+  if (spotter?.news?.length) {
+    const cutoff = new Date(Date.now() - 45 * 864e5).toISOString().slice(0, 10);
+    const seen = new Set(changelog.entries.filter(e => e.type === "spotter_news").map(e => e.date + "|" + e.text));
+    const freshNews = spotter.news
+      .filter(n => n.date >= cutoff && !seen.has(n.date + "|" + n.text))
+      .map(n => ({ date: n.date, type: "spotter_news", text: n.text }));
+    changelog.entries = [...freshNews, ...changelog.entries]
+      .sort((a, b) => b.date.localeCompare(a.date))
+      .slice(0, 400);
+    console.log(`News Invader Spotter intégrées : ${freshNews.length}`);
   }
 
   // Sorties

@@ -63,6 +63,29 @@ async function cityReferential() {
   return cities;
 }
 
+/** News du site (page news.php) : sections par mois, entrées par jour. */
+async function scrapeNews(maxEntries = 100) {
+  const html = await get("/news.php");
+  const entries = [];
+  const monthRe = /<div id='mois(\d{6})'>([\s\S]*?)<\/div>/g;
+  for (const m of html.matchAll(monthRe)) {
+    const ym = m[1];
+    let currentDay = null;
+    for (const pm of m[2].matchAll(/<p class='news'>([\s\S]*?)<\/p>/g)) {
+      let text = pm[1];
+      const dm = text.match(/^<b>(\d{1,2})\s*:<\/b>/);
+      if (dm) { currentDay = dm[1].padStart(2, "0"); text = text.replace(/^<b>[^<]*<\/b>/, ""); }
+      if (!currentDay) continue;
+      const plain = decodeEntities(
+        text.replace(/<[^>]+>/g, " ")
+      ).replace(/\s+/g, " ").replace(/\s+([,.])/g, "$1").trim();
+      if (plain) entries.push({ date: `${ym.slice(0, 4)}-${ym.slice(4)}-${currentDay}`, text: plain });
+      if (entries.length >= maxEntries) return entries;
+    }
+  }
+  return entries;
+}
+
 function parseRows(html) {
   const out = [];
   for (const chunk of html.split(/<tr class="haut">/).slice(1)) {
@@ -111,6 +134,10 @@ async function main() {
   const cities = await cityReferential();
   console.log(`Référentiel : ${Object.keys(cities).length} villes officielles`);
 
+  await sleep(DELAY_MS);
+  const news = await scrapeNews();
+  console.log(`News : ${news.length} entrées`);
+
   const items = {};
   const codes = onlyCity ? [onlyCity] : Object.keys(cities);
   for (const code of codes) {
@@ -133,6 +160,7 @@ async function main() {
   const out = {
     date: new Date().toISOString().slice(0, 10),
     cities,
+    news,
     items
   };
   await writeFile(join(CACHE, "spotter.json"), JSON.stringify(out));

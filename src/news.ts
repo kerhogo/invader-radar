@@ -4,10 +4,12 @@ import { loadChangelog } from "./data";
 import { escapeHtml } from "./dashboard";
 import { STATUS_LABELS } from "./data";
 
+const SPOTTER_URL = "https://www.invader-spotter.art/news.php";
+
 let cache: ChangeEntry[] | null = null;
 
 async function entries(): Promise<ChangeEntry[]> {
-  cache ??= await loadChangelog();
+  cache ??= (await loadChangelog()).slice().sort((a, b) => b.date.localeCompare(a.date));
   return cache;
 }
 
@@ -30,11 +32,12 @@ export async function renderNews(): Promise<void> {
   }
 
   const seen = state.settings.lastNewsSeen;
-  const cityName = (code: string) => state.dataset?.cities[code]?.name ?? code;
+  const cityName = (code?: string) => (code && state.dataset?.cities[code]?.name) || code || "";
 
   const byDate = new Map<string, ChangeEntry[]>();
   for (const e of list.slice(0, 120)) {
-    (byDate.get(e.date) ?? byDate.set(e.date, []).get(e.date)!).push(e);
+    if (!byDate.has(e.date)) byDate.set(e.date, []);
+    byDate.get(e.date)!.push(e);
   }
 
   root.innerHTML = [...byDate.entries()].map(([date, items]) => `
@@ -42,12 +45,17 @@ export async function renderNews(): Promise<void> {
       <h2>${new Date(date + "T12:00:00").toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })}
           ${date > seen ? `<span class="tag">nouveau</span>` : ""}</h2>
       ${items.map(item).join("")}
-    </div>`).join("");
+    </div>`).join("") + `
+    <p class="hint center">Veille communautaire : <a href="${SPOTTER_URL}" target="_blank" rel="noopener">Invader Spotter</a></p>`;
 
   markSeen();
 
   function item(e: ChangeEntry): string {
     const zone = e.zone ? ` — ${escapeHtml(e.zone)}` : "";
+    if (e.type === "spotter_news") {
+      return row("🛰️", escapeHtml(e.text ?? ""),
+        `Source : <a href="${SPOTTER_URL}" target="_blank" rel="noopener">Invader Spotter</a>`);
+    }
     if (e.type === "new_city") {
       return row("🏙️", `Nouvelle ville invadée : ${escapeHtml(cityName(e.city))}`, "Le monde s'agrandit !");
     }
@@ -68,7 +76,7 @@ export async function renderNews(): Promise<void> {
       <div class="row news-item">
         <div class="icon">${icon}</div>
         <div class="grow">
-          <div class="title" style="font-size:15px">${title}</div>
+          <div class="title" style="font-size:14.5px;font-weight:500;line-height:1.4">${title}</div>
           <div class="sub">${sub}</div>
         </div>
       </div>`;

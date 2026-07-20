@@ -4,16 +4,17 @@ import { state, on } from "./state";
 import { cityStats, zoneStats, loadZones } from "./data";
 import { fmt, escapeHtml } from "./dashboard";
 
-const LIGHT_STYLE = "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json";
-const DARK_STYLE = "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json";
+const BASE_STYLE = "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json";
 
-/* Palette choroplèthe : gris (à explorer) → ambre (en cours) → vert (complété). */
+/* Palette choroplèthe alignée sur la DA : navy (à explorer) → ambre → vert. */
 const COLOR_EXPR: any = [
   "interpolate", ["linear"], ["get", "pct"],
-  0, "#98989d",
-  0.5, "#ff9f0a",
-  1, "#34c759"
+  0, "#64789a",
+  0.5, "#ffb340",
+  1, "#30d158"
 ];
+const TEXT_COLOR = "#eaf2ff";
+const HALO_COLOR = "#081428";
 
 let map: maplibregl.Map | null = null;
 let ready = false;
@@ -26,22 +27,83 @@ export function show(): void {
       <div id="map-root"></div>
       <div class="map-overlay-top">
         <div class="map-legend">
-          <i style="background:#98989d"></i> à explorer
-          <i style="background:#ff9f0a"></i> en cours
-          <i style="background:#34c759"></i> complété
+          <i style="background:#64789a"></i> à explorer
+          <i style="background:#ffb340"></i> en cours
+          <i style="background:#30d158"></i> complété
         </div>
       </div>`;
-    initMap();
+    void initMap();
   } else {
     requestAnimationFrame(() => map!.resize());
   }
 }
 
-function initMap(): void {
-  const dark = matchMedia("(prefers-color-scheme: dark)").matches;
+/* ---------- Fond de carte recoloré « navy sonar » ----------
+   dark-matter est trop noir : on remappe chaque couleur du style selon sa
+   luminance sur une rampe navy → glace, eau à part. Déterministe et lisible. */
+
+const NAVY_DARK: [number, number, number] = [9, 22, 44];
+const NAVY_LIGHT: [number, number, number] = [176, 205, 245];
+const WATER: [number, number, number] = [14, 34, 66];
+
+function parseColor(c: string): [number, number, number, number] | null {
+  const hex = c.match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
+  if (hex) {
+    let h = hex[1];
+    if (h.length === 3) h = [...h].map(x => x + x).join("");
+    return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16), 1];
+  }
+  const rgb = c.match(/^rgba?\(([^)]+)\)$/i);
+  if (rgb) {
+    const p = rgb[1].split(",").map(s => parseFloat(s));
+    return [p[0], p[1], p[2], p.length > 3 ? p[3] : 1];
+  }
+  return null;
+}
+
+function remapColor(c: string, isWater: boolean): string {
+  const parsed = parseColor(c);
+  if (!parsed) return c;
+  const [r, g, b, a] = parsed;
+  const lum = Math.pow((0.299 * r + 0.587 * g + 0.114 * b) / 255, 0.82);
+  const target = isWater ? WATER : NAVY_LIGHT;
+  const base = isWater ? [Math.round(WATER[0] * 0.6), Math.round(WATER[1] * 0.6), Math.round(WATER[2] * 0.6)] : NAVY_DARK;
+  const out = base.map((v, i) => Math.round(v + (target[i] - v) * (isWater ? 0.5 + lum * 0.5 : lum)));
+  return `rgba(${out[0]}, ${out[1]}, ${out[2]}, ${a})`;
+}
+
+function remapValue(v: any, isWater: boolean): any {
+  if (typeof v === "string") return remapColor(v, isWater);
+  if (v && typeof v === "object" && Array.isArray(v.stops)) {
+    return { ...v, stops: v.stops.map(([z, c]: any) => [z, typeof c === "string" ? remapColor(c, isWater) : c]) };
+  }
+  if (Array.isArray(v)) return v.map(x => (typeof x === "string" && parseColor(x) ? remapColor(x, isWater) : x));
+  return v;
+}
+
+async function navyStyle(): Promise<any> {
+  const res = await fetch(BASE_STYLE);
+  const style = await res.json();
+  for (const layer of style.layers ?? []) {
+    const isWater = /water|ocean|river/i.test(layer.id);
+    for (const bag of [layer.paint, layer.layout]) {
+      if (!bag) continue;
+      for (const key of Object.keys(bag)) {
+        if (key.endsWith("-color")) bag[key] = remapValue(bag[key], isWater);
+      }
+    }
+    if (layer.type === "background") {
+      layer.paint = { ...(layer.paint ?? {}), "background-color": "rgb(9, 22, 44)" };
+    }
+  }
+  return style;
+}
+
+async function initMap(): Promise<void> {
+  const style = await navyStyle().catch(() => BASE_STYLE);
   map = new maplibregl.Map({
     container: "map-root",
-    style: dark ? DARK_STYLE : LIGHT_STYLE,
+    style,
     center: [2.34, 48.86],
     zoom: 10.7,
     minZoom: 1.2,
@@ -67,7 +129,7 @@ function initMap(): void {
   });
 }
 
-/* ---------- Villes (bulles monde, zoom éloigné) ---------- */
+/* ---------- Villes (bulles) ---------- */
 
 function citiesGeoJSON(): GeoJSON.FeatureCollection {
   const feats: GeoJSON.Feature[] = [];
@@ -84,64 +146,81 @@ function citiesGeoJSON(): GeoJSON.FeatureCollection {
         active: c.active,
         label: `${c.foundTotal}/${denom}`,
         pct: denom > 0 ? Math.min(1, c.foundTotal / denom) : 0,
-        size: Math.sqrt(Math.max(4, c.active))
+        size: Math.sqrt(Math.max(4, c.active)),
+        // les villes avec sous-découpage cèdent la place à la choroplèthe au zoom
+        hasZones: !!state.dataset?.cities[c.code]?.zones
       }
     });
   }
   return { type: "FeatureCollection", features: feats };
 }
 
+function circlePaint(): any {
+  return {
+    "circle-radius": ["interpolate", ["linear"], ["get", "size"], 2, 8, 40, 26],
+    "circle-color": COLOR_EXPR,
+    "circle-opacity": 0.85,
+    "circle-stroke-width": 2,
+    "circle-stroke-color": "rgba(234, 242, 255, 0.85)"
+  };
+}
+
+function labelLayout(): any {
+  return {
+    "text-field": ["format",
+      ["get", "name"], { "font-scale": 0.9 }, "\n", {},
+      ["get", "label"], { "font-scale": 1.05 }],
+    "text-font": ["Open Sans Bold"],
+    "text-size": 12,
+    "text-offset": [0, 1.7],
+    "text-allow-overlap": false
+  };
+}
+
 function addCities(): void {
   if (!map) return;
   map.addSource("cities", { type: "geojson", data: citiesGeoJSON() });
 
+  // Vue monde : toutes les villes jusqu'au zoom 11
   map.addLayer({
-    id: "cities-circle",
-    type: "circle",
-    source: "cities",
-    maxzoom: 11,
-    paint: {
-      "circle-radius": ["interpolate", ["linear"], ["get", "size"], 2, 8, 40, 26],
-      "circle-color": COLOR_EXPR,
-      "circle-opacity": 0.82,
-      "circle-stroke-width": 2,
-      "circle-stroke-color": "rgba(255,255,255,0.85)"
-    }
+    id: "cities-circle", type: "circle", source: "cities", maxzoom: 11,
+    paint: circlePaint()
   });
   map.addLayer({
-    id: "cities-label",
-    type: "symbol",
-    source: "cities",
-    maxzoom: 11,
-    layout: {
-      "text-field": ["format",
-        ["get", "name"], { "font-scale": 0.9 }, "\n", {},
-        ["get", "label"], { "font-scale": 1.05 }],
-      "text-font": ["Open Sans Bold"],
-      "text-size": 12,
-      "text-offset": [0, 1.7],
-      "text-allow-overlap": false
-    },
-    paint: {
-      "text-color": matchMedia("(prefers-color-scheme: dark)").matches ? "#f2f2f7" : "#1c1c1e",
-      "text-halo-color": matchMedia("(prefers-color-scheme: dark)").matches ? "#000" : "#fff",
-      "text-halo-width": 1.4
-    }
+    id: "cities-label", type: "symbol", source: "cities", maxzoom: 11,
+    layout: labelLayout(),
+    paint: { "text-color": TEXT_COLOR, "text-halo-color": HALO_COLOR, "text-halo-width": 1.4 }
+  });
+  // Zoom rapproché : les villes SANS sous-découpage gardent leur bulle
+  map.addLayer({
+    id: "cities-circle-close", type: "circle", source: "cities", minzoom: 11,
+    filter: ["!", ["get", "hasZones"]],
+    paint: circlePaint()
+  });
+  map.addLayer({
+    id: "cities-label-close", type: "symbol", source: "cities", minzoom: 11,
+    filter: ["!", ["get", "hasZones"]],
+    layout: labelLayout(),
+    paint: { "text-color": TEXT_COLOR, "text-halo-color": HALO_COLOR, "text-halo-width": 1.4 }
   });
 
-  map.on("click", "cities-circle", ev => {
-    const p = ev.features?.[0]?.properties as any;
-    if (!p) return;
-    openSheet(String(p.name),
-      `<div class="stat-row">
-         <div class="stat ok"><b>${fmt(Number(p.found))}</b><span>flashés</span></div>
-         <div class="stat accent"><b>${fmt(Math.max(0, Number(p.active) - Number(p.found)))}</b><span>restants localisés</span></div>
-       </div>
-       <p class="hint mt">Zoome pour voir le détail par zone quand il existe.</p>`);
-    map!.flyTo({ center: (ev.features![0].geometry as any).coordinates, zoom: 11.6 });
-  });
-  map.on("mouseenter", "cities-circle", () => { map!.getCanvas().style.cursor = "pointer"; });
-  map.on("mouseleave", "cities-circle", () => { map!.getCanvas().style.cursor = ""; });
+  for (const layerId of ["cities-circle", "cities-circle-close"]) {
+    map.on("click", layerId, ev => {
+      const p = ev.features?.[0]?.properties as any;
+      if (!p) return;
+      openSheet(String(p.name),
+        `<div class="stat-row">
+           <div class="stat ok"><b>${fmt(Number(p.found))}</b><span>flashés</span></div>
+           <div class="stat accent"><b>${fmt(Math.max(0, Number(p.active) - Number(p.found)))}</b><span>restants localisés</span></div>
+         </div>
+         ${p.hasZones ? `<p class="hint mt">Zoome pour le détail par zone.</p>` : ""}`);
+      if (Number(map!.getZoom()) < 11) {
+        map!.flyTo({ center: (ev.features![0].geometry as any).coordinates, zoom: p.hasZones ? 11.6 : 12.5 });
+      }
+    });
+    map.on("mouseenter", layerId, () => { map!.getCanvas().style.cursor = "pointer"; });
+    map.on("mouseleave", layerId, () => { map!.getCanvas().style.cursor = ""; });
+  }
 }
 
 function updateCities(): void {
@@ -194,10 +273,16 @@ function centroids(fc: GeoJSON.FeatureCollection): GeoJSON.FeatureCollection {
 
 async function addZones(): Promise<void> {
   if (!map || !state.dataset) return;
-  const dark = matchMedia("(prefers-color-scheme: dark)").matches;
 
-  for (const [code, info] of Object.entries(state.dataset.cities)) {
-    if (!info.zones) continue;
+  // toutes les villes en parallèle : la carte est complète en une volée réseau
+  await Promise.all(Object.entries(state.dataset.cities).map(([code, info]) =>
+    info.zones ? addCityZones(code) : Promise.resolve()
+  ));
+}
+
+async function addCityZones(code: string): Promise<void> {
+  if (!map) return;
+  {
     for (const [level, minz, maxz] of [["z2", 11, 13.4], ["z1", 13.4, 24]] as const) {
       const data = await zoneGeoJSON(code, level);
       if (!data) continue;
@@ -213,7 +298,7 @@ async function addZones(): Promise<void> {
         maxzoom: maxz,
         paint: {
           "fill-color": COLOR_EXPR,
-          "fill-opacity": ["case", ["<", ["get", "pct"], 0], 0.04, 0.32]
+          "fill-opacity": ["case", ["<", ["get", "pct"], 0], 0.05, 0.34]
         }
       });
       map.addLayer({
@@ -223,7 +308,7 @@ async function addZones(): Promise<void> {
         minzoom: minz,
         maxzoom: maxz,
         paint: {
-          "line-color": dark ? "rgba(255,255,255,0.35)" : "rgba(0,0,0,0.25)",
+          "line-color": "rgba(160, 195, 245, 0.4)",
           "line-width": 1
         }
       });
@@ -241,8 +326,8 @@ async function addZones(): Promise<void> {
           "text-size": 13
         },
         paint: {
-          "text-color": dark ? "#f2f2f7" : "#1c1c1e",
-          "text-halo-color": dark ? "#000" : "#fff",
+          "text-color": TEXT_COLOR,
+          "text-halo-color": HALO_COLOR,
           "text-halo-width": 1.5
         }
       });

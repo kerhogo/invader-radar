@@ -45,7 +45,7 @@ export function heatColor(t: number): string {
 
 /** Diamètre de l'anneau (fraction 0–1 de la scène) : se resserre en chauffant. */
 export function ringSize(t: number): number {
-  return 1 - 0.74 * t; // 100 % → 26 %
+  return 0.97 - 0.71 * t; // 97 % → 26 % (léger retrait pour ne jamais toucher les bords)
 }
 
 /** Intervalle entre deux tics « compteur Geiger » (ms). Infini = silence. */
