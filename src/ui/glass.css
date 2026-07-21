@@ -488,7 +488,7 @@ a { color: var(--ice); }
 }
 .radar-stage {
   position: relative;
-  height: min(100%, min(88vw, 440px));
+  height: min(100%, min(93vw, 480px));
   aspect-ratio: 1;
   display: grid;
   place-items: center;
@@ -500,8 +500,9 @@ a { color: var(--ice); }
   border-radius: 50%;
   border: 2.5px solid rgba(255, 255, 255, 0.85);
   box-shadow: 0 0 16px rgba(255, 255, 255, 0.16), 0 0 30px rgba(255,255,255,0.05) inset;
-  transition: width 0.3s cubic-bezier(0.22, 1, 0.36, 1), height 0.3s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.4s;
+  transition: width 0.18s linear, height 0.18s linear, opacity 0.4s;
 }
+/* ondes : masquées tant que la chasse n'est pas lancée (#hunt-screen.hunting) */
 .radar-pulse {
   position: absolute;
   border-radius: 50%;
@@ -510,7 +511,9 @@ a { color: var(--ice); }
   margin: auto;
   animation: pulse 2.6s ease-out infinite;
   opacity: 0;
+  display: none;
 }
+#hunt-screen.hunting .radar-pulse { display: block; }
 @keyframes pulse {
   0% { transform: scale(0.25); opacity: 0.7; }
   100% { transform: scale(0.98); opacity: 0; }

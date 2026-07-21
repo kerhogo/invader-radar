@@ -136,6 +136,7 @@ function start(): void {
   trail.length = 0;
   bestFix = null;
   setCapture("none");
+  el().querySelector("#hunt-screen")?.classList.add("hunting"); // affiche les ondes
   el().querySelector<HTMLButtonElement>("#btn-hunt")!.textContent = "Terminer la chasse";
   setChip("🛰️ Calage GPS…");
   createWidget();
@@ -168,6 +169,7 @@ function stop(showSummary: boolean): void {
   currentHeat = 0;
   setCapture("none");
   removeWidget();
+  el().querySelector("#hunt-screen")?.classList.remove("hunting"); // masque les ondes
 
   const btn = el().querySelector<HTMLButtonElement>("#btn-hunt");
   if (btn) btn.textContent = "Démarrer la chasse";
