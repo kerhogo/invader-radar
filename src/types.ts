@@ -19,6 +19,9 @@ export interface CityInfo {
   count: number;        // invaders référencés (base fusionnée)
   official?: number;    // dénominateur officiel (référentiel Invader Spotter)
   zones?: boolean;      // true si des polygones zones/<code>-z1/z2.geojson existent
+  flag?: string;        // drapeau emoji du pays
+  country?: string;
+  continent?: string;
 }
 
 export interface Dataset {
@@ -55,8 +58,11 @@ export interface ChangeEntry {
 
 export interface Settings {
   uid: string;
-  radius: number;               // rayon chasse en mètres
+  radius: number;               // rayon chasse en mètres (compteurs "dans le rayon")
+  scaleDistance: number;        // distance d'échelle du radar en mètres (défaut 200)
   sounds: boolean;
+  haptics: boolean;             // vibrations (Android uniquement — non supporté par iOS web)
+  showDistanceAlways: boolean;  // forcer l'affichage de la distance même sous l'échelle
   includeDamaged: boolean;
   includeHidden: boolean;
   includeUnknown: boolean;

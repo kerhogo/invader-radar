@@ -18,7 +18,21 @@ const HALO_COLOR = "#081428";
 
 let map: maplibregl.Map | null = null;
 let ready = false;
+let pendingFocus: string | null = null;
 const zoneLayers = new Set<string>();
+
+/* Seuils de zoom : bulles monde → arrondissements/communes tôt au dézoom → quartiers */
+const Z_BUBBLE_MAX = 9.3;
+const Z_MID: [number, number] = [9.3, 12.8];
+const Z_FINE: [number, number] = [12.8, 24];
+
+/** Centre la carte sur une ville (appelé depuis le dashboard). */
+export function focusCity(code: string): void {
+  const info = state.dataset?.cities[code];
+  if (!info) return;
+  if (!map || !ready) { pendingFocus = code; return; }
+  map.flyTo({ center: [info.lng, info.lat], zoom: info.zones ? 10.8 : 12.3 });
+}
 
 export function show(): void {
   const root = document.getElementById("view-map")!;
@@ -126,6 +140,7 @@ async function initMap(): Promise<void> {
     on("gallery", refresh);
     on("settings", refresh);
     on("dataset", refresh);
+    if (pendingFocus) { focusCity(pendingFocus); pendingFocus = null; }
   });
 }
 
@@ -181,24 +196,24 @@ function addCities(): void {
   if (!map) return;
   map.addSource("cities", { type: "geojson", data: citiesGeoJSON() });
 
-  // Vue monde : toutes les villes jusqu'au zoom 11
+  // Vue monde : toutes les villes jusqu'au seuil du découpage
   map.addLayer({
-    id: "cities-circle", type: "circle", source: "cities", maxzoom: 11,
+    id: "cities-circle", type: "circle", source: "cities", maxzoom: Z_BUBBLE_MAX,
     paint: circlePaint()
   });
   map.addLayer({
-    id: "cities-label", type: "symbol", source: "cities", maxzoom: 11,
+    id: "cities-label", type: "symbol", source: "cities", maxzoom: Z_BUBBLE_MAX,
     layout: labelLayout(),
     paint: { "text-color": TEXT_COLOR, "text-halo-color": HALO_COLOR, "text-halo-width": 1.4 }
   });
   // Zoom rapproché : les villes SANS sous-découpage gardent leur bulle
   map.addLayer({
-    id: "cities-circle-close", type: "circle", source: "cities", minzoom: 11,
+    id: "cities-circle-close", type: "circle", source: "cities", minzoom: Z_BUBBLE_MAX,
     filter: ["!", ["get", "hasZones"]],
     paint: circlePaint()
   });
   map.addLayer({
-    id: "cities-label-close", type: "symbol", source: "cities", minzoom: 11,
+    id: "cities-label-close", type: "symbol", source: "cities", minzoom: Z_BUBBLE_MAX,
     filter: ["!", ["get", "hasZones"]],
     layout: labelLayout(),
     paint: { "text-color": TEXT_COLOR, "text-halo-color": HALO_COLOR, "text-halo-width": 1.4 }
@@ -214,8 +229,8 @@ function addCities(): void {
            <div class="stat accent"><b>${fmt(Math.max(0, Number(p.active) - Number(p.found)))}</b><span>restants localisés</span></div>
          </div>
          ${p.hasZones ? `<p class="hint mt">Zoome pour le détail par zone.</p>` : ""}`);
-      if (Number(map!.getZoom()) < 11) {
-        map!.flyTo({ center: (ev.features![0].geometry as any).coordinates, zoom: p.hasZones ? 11.6 : 12.5 });
+      if (Number(map!.getZoom()) < Z_BUBBLE_MAX) {
+        map!.flyTo({ center: (ev.features![0].geometry as any).coordinates, zoom: p.hasZones ? 10.5 : 12.3 });
       }
     });
     map.on("mouseenter", layerId, () => { map!.getCanvas().style.cursor = "pointer"; });
@@ -283,7 +298,7 @@ async function addZones(): Promise<void> {
 async function addCityZones(code: string): Promise<void> {
   if (!map) return;
   {
-    for (const [level, minz, maxz] of [["z2", 11, 13.4], ["z1", 13.4, 24]] as const) {
+    for (const [level, [minz, maxz]] of [["z2", Z_MID], ["z1", Z_FINE]] as const) {
       const data = await zoneGeoJSON(code, level);
       if (!data) continue;
       const src = `zones-${code}-${level}`;

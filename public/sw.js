@@ -1,7 +1,7 @@
 /* Service worker Invader Radar.
    - App shell / assets : cache d'abord, mise à jour silencieuse derrière.
    - Données (/data/) : RÉSEAU d'abord (fraîcheur quotidienne), cache en secours hors-ligne. */
-const VERSION = "ir-v2";
+const VERSION = "ir-v3";
 const SHELL = ["./", "./index.html", "./manifest.webmanifest"];
 
 self.addEventListener("install", event => {

@@ -1,5 +1,6 @@
-import { state, saveSettings } from "./state";
+import { state, saveSettings, setGallery } from "./state";
 import { isActive, isFlashed, loadZones, zoneStats } from "./data";
+import { fetchGallery } from "./api";
 import { haversine, pointInGeometry } from "./geo";
 import { heat, heatColor, ringSize, tickInterval } from "./calibration";
 import { fmt } from "./dashboard";
@@ -13,6 +14,8 @@ let audioCtx: AudioContext | null = null;
 let tickTimer: number | null = null;
 let currentHeat = 0;
 let bestFix: { pos: GeolocationPosition; at: number } | null = null;
+let captureState: "none" | "camera" | "refresh" = "none";
+let pendingReturn = false;
 const trail: Array<{ lat: number; lng: number }> = [];
 
 /* Rayon : curseur logarithmique 3 m → 1 km (précis sur les petites valeurs). */
@@ -38,19 +41,26 @@ const SPRITE = [
   "...XX.XX..."
 ];
 
-function spriteSvg(): string {
+function spriteSvg(cls = "radar-core"): string {
   const rects = SPRITE.flatMap((row, y) =>
     [...row].map((c, x) => (c === "X" ? `<rect x="${x}" y="${y}" width="1" height="1"/>` : ""))
   ).join("");
-  return `<svg class="radar-core" viewBox="0 0 11 8" fill="#fff" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg">${rects}</svg>`;
+  return `<svg class="${cls}" viewBox="0 0 11 8" fill="#fff" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg">${rects}</svg>`;
 }
+
+const CAMERA_SVG = `<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h3l2-2.5h6L17 7h3a1.5 1.5 0 0 1 1.5 1.5v9A1.5 1.5 0 0 1 20 19H4a1.5 1.5 0 0 1-1.5-1.5v-9A1.5 1.5 0 0 1 4 7z"/><circle cx="12" cy="12.5" r="3.4"/></svg>`;
+const REFRESH_SVG = `<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-2.3 6.3"/><path d="M20 5v6h-6"/></svg>`;
 
 export function show(): void {
-  render();
+  // le DOM du radar est persistant : on ne le reconstruit jamais pendant une chasse
+  if (!el().querySelector("#hunt-screen")) render();
 }
 
-export function hide(): void {
-  stop(false);
+/** Changer d'onglet ne stoppe PAS la chasse (elle vit jusqu'à « Terminer »). */
+export function hide(): void {}
+
+export function isRunning(): boolean {
+  return running;
 }
 
 function render(): void {
@@ -74,7 +84,7 @@ function render(): void {
 
       <div class="hunt-counts">
         <div class="stat"><b id="c-tofind">–</b><span>à trouver</span></div>
-        <div class="stat"><b id="c-indoor">–</b><span>dont intérieur</span></div>
+        <div class="stat" id="stat-indoor" hidden><b id="c-indoor">–</b><span>dont intérieur</span></div>
         <div class="stat"><b id="c-total">–</b><span>total rayon</span></div>
       </div>
 
@@ -83,7 +93,10 @@ function render(): void {
           <label>Rayon de détection : <b id="radius-label">${r} m</b></label>
           <input type="range" id="radius-slider" min="0" max="100" step="1" value="${fromRadius(r)}" />
         </div>
-        <button class="btn" id="btn-hunt">Démarrer la chasse</button>
+        <div class="hunt-actions">
+          <button class="btn" id="btn-hunt">Démarrer la chasse</button>
+          <button class="btn icon-only" id="btn-capture" hidden aria-label="Flasher"></button>
+        </div>
       </div>
     </div>
   `;
@@ -106,6 +119,7 @@ function wire(): void {
   root.querySelector<HTMLButtonElement>("#btn-hunt")!.addEventListener("click", () => {
     running ? stop(true) : start();
   });
+  root.querySelector<HTMLButtonElement>("#btn-capture")!.addEventListener("click", onCapture);
 }
 
 function setChip(text: string, warn = false): void {
@@ -121,8 +135,10 @@ function start(): void {
   running = true;
   trail.length = 0;
   bestFix = null;
+  setCapture("none");
   el().querySelector<HTMLButtonElement>("#btn-hunt")!.textContent = "Terminer la chasse";
   setChip("🛰️ Calage GPS…");
+  createWidget();
 
   // Contexte audio créé dans le geste utilisateur (exigence iOS)
   if (state.settings.sounds && !audioCtx) {
@@ -150,6 +166,8 @@ function stop(showSummary: boolean): void {
   wakeLock = null;
   document.removeEventListener("visibilitychange", onVisibility);
   currentHeat = 0;
+  setCapture("none");
+  removeWidget();
 
   const btn = el().querySelector<HTMLButtonElement>("#btn-hunt");
   if (btn) btn.textContent = "Démarrer la chasse";
@@ -165,6 +183,10 @@ function onVisibility(): void {
   if (document.visibilityState === "visible") {
     requestWakeLock();
     audioCtx?.resume().catch(() => {});
+    if (pendingReturn && running) {
+      pendingReturn = false;
+      setCapture("refresh");
+    }
   }
 }
 
@@ -172,6 +194,63 @@ function requestWakeLock(): void {
   (navigator as any).wakeLock?.request("screen")
     .then((l: any) => { wakeLock = l; })
     .catch(() => {});
+}
+
+/* ---------- Flux capture (< 20 m) ---------- */
+
+function setCapture(mode: "none" | "camera" | "refresh"): void {
+  captureState = mode;
+  const btn = el().querySelector<HTMLButtonElement>("#btn-capture");
+  if (!btn) return;
+  btn.hidden = mode === "none";
+  btn.disabled = false;
+  btn.innerHTML = mode === "refresh" ? REFRESH_SVG : CAMERA_SVG;
+  btn.setAttribute("aria-label", mode === "refresh" ? "Actualiser mes flashs" : "Ouvrir FlashInvaders");
+}
+
+async function onCapture(): Promise<void> {
+  if (captureState === "camera") {
+    pendingReturn = true;
+    // Meilleur essai : schéma d'URL de l'app officielle (sans effet si non installée)
+    location.href = "flashinvaders://";
+    return;
+  }
+  if (captureState === "refresh") {
+    // même action que « Actualiser mes flashs » du Tableau : recharge la galerie
+    const btn = el().querySelector<HTMLButtonElement>("#btn-capture");
+    if (btn) { btn.disabled = true; btn.classList.add("spinning"); }
+    try {
+      if (state.settings.uid) setGallery(await fetchGallery(state.settings.uid));
+    } catch { /* le cache local reste bon */ }
+    setCapture("none");
+    if (bestFix) update(bestFix.pos); // recompte : l'invader flashé disparaît des « à trouver »
+  }
+}
+
+/* ---------- Mini-widget (chasse active sur les autres onglets) ---------- */
+
+function createWidget(): void {
+  if (document.getElementById("hunt-widget")) return;
+  const w = document.createElement("button");
+  w.id = "hunt-widget";
+  w.innerHTML = `${spriteSvg("hw-sprite")}<span id="hw-text">Radar actif</span>`;
+  document.body.appendChild(w);
+}
+
+function removeWidget(): void {
+  document.getElementById("hunt-widget")?.remove();
+}
+
+function updateWidget(t: number, toFind: number | null, distanceText: string): void {
+  const w = document.getElementById("hunt-widget");
+  if (!w) return;
+  w.style.background = heatColor(Math.max(0.06, t));
+  const txt = document.getElementById("hw-text");
+  if (txt) {
+    txt.textContent = toFind === null
+      ? "Radar actif"
+      : `${fmt(toFind)} à trouver${distanceText ? ` · ${distanceText}` : ""}`;
+  }
 }
 
 /* ---------- Cœur du radar ---------- */
@@ -229,15 +308,26 @@ function update(pos: GeolocationPosition): void {
     if (!t.flashed && d < nearest) nearest = d;
   }
 
-  currentHeat = Number.isFinite(nearest) ? heat(nearest) : 0;
-  paint(currentHeat, { toFind, total, indoor });
+  // Échelle du radar : distance réglable par l'utilisateur (200 m par défaut)
+  const scale = state.settings.scaleDistance;
+  currentHeat = Number.isFinite(nearest) ? heat(nearest, scale) : 0;
 
+  // Distance : masquée sous l'échelle (chasse au tâtonnement), sauf réglage forcé
+  const showDist = state.settings.showDistanceAlways || nearest > scale;
+  const distText = Number.isFinite(nearest) && nearest < 5000 ? fuzzyDistance(nearest) : "";
   const nearestLine = el().querySelector<HTMLElement>("#nearest-line");
   if (nearestLine) {
-    nearestLine.textContent = Number.isFinite(nearest) && nearest < 5000
-      ? `Le plus proche à trouver : ${fuzzyDistance(nearest)}`
-      : "Aucun invader à trouver à moins de 5 km";
+    nearestLine.textContent = !Number.isFinite(nearest) || nearest >= 5000
+      ? "Aucun invader à trouver à moins de 5 km"
+      : showDist ? `Le plus proche à trouver : ${distText}` : "";
   }
+
+  paint(currentHeat, { toFind, total, indoor });
+  updateWidget(currentHeat, toFind, showDist ? distText : "");
+
+  // Flux capture : un invader à portée de flash
+  if (Number.isFinite(nearest) && nearest < 20 && captureState === "none") setCapture("camera");
+  else if ((!Number.isFinite(nearest) || nearest > 25) && captureState === "camera") setCapture("none");
 
   const acc = Math.round(accuracy);
   if (accuracy > 150) setChip(`🛰️ Calage GPS… ±${acc} m`);
@@ -262,31 +352,45 @@ function paint(t: number, counts: { toFind: number; total: number; indoor: numbe
   set("#c-tofind", counts ? fmt(counts.toFind) : "–");
   set("#c-indoor", counts ? fmt(counts.indoor) : "–");
   set("#c-total", counts ? fmt(counts.total) : "–");
+  const indoorStat = screen.querySelector<HTMLElement>("#stat-indoor");
+  if (indoorStat) indoorStat.hidden = !counts || counts.indoor === 0;
 }
 
-/* ---------- Son « compteur Geiger » ---------- */
+/* ---------- Son « compteur Geiger » + vibrations ---------- */
 
 function scheduleTick(): void {
   if (!running) return;
   const interval = tickInterval(currentHeat);
   tickTimer = window.setTimeout(() => {
-    if (state.settings.sounds && Number.isFinite(interval)) tick();
+    if (Number.isFinite(interval)) {
+      if (state.settings.sounds) tick();
+      // Vibration API : Android uniquement (iOS web ne l'expose pas)
+      if (state.settings.haptics) (navigator as any).vibrate?.(15 + Math.round(currentHeat * 25));
+    }
     scheduleTick();
   }, Number.isFinite(interval) ? interval : 500);
 }
 
+/* Blip sonar doux : sinusoïde filtrée passe-bas, montée/descente progressives —
+   bien plus agréable que le tic carré façon Geiger. La hauteur monte avec la chaleur. */
 function tick(): void {
   if (!audioCtx || audioCtx.state !== "running") return;
   const t0 = audioCtx.currentTime;
   const osc = audioCtx.createOscillator();
   const gain = audioCtx.createGain();
-  osc.type = "square";
-  osc.frequency.value = 880 + currentHeat * 880;
-  gain.gain.setValueAtTime(0.12, t0);
-  gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.05);
-  osc.connect(gain).connect(audioCtx.destination);
+  const lp = audioCtx.createBiquadFilter();
+  osc.type = "sine";
+  const f = 430 + currentHeat * 340;
+  osc.frequency.setValueAtTime(f, t0);
+  osc.frequency.exponentialRampToValueAtTime(f * 1.5, t0 + 0.11);
+  lp.type = "lowpass";
+  lp.frequency.value = 1400;
+  gain.gain.setValueAtTime(0.0001, t0);
+  gain.gain.exponentialRampToValueAtTime(0.05 + currentHeat * 0.03, t0 + 0.02);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.16);
+  osc.connect(lp).connect(gain).connect(audioCtx.destination);
   osc.start(t0);
-  osc.stop(t0 + 0.06);
+  osc.stop(t0 + 0.18);
 }
 
 /* ---------- Bilan de balade (anti-frustration, niveau zone uniquement) ---------- */

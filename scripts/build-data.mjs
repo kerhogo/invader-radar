@@ -52,6 +52,48 @@ const CITY_NAMES = {
   SPACE: "Espace (ISS)", MARSP: "Mars"
 };
 
+/** Pays / drapeau / continent par code ville (groupes du formulaire Invader Spotter). */
+const COUNTRY_INFO = (() => {
+  const t = {};
+  const add = (codes, country, flag, continent) => { for (const c of codes.split(" ")) t[c] = { country, flag, continent }; };
+  add("PA VRS TLS MARS LY GRN MPL RN REN LIL BAB AIX AMI AVI BTA CAPF CLR CON CAZ DIJ FTBL FRQ LCT LBR MTB NIM ORLN PAU PRP VLMO NA", "France", "🇫🇷", "Europe");
+  add("REUN", "La Réunion (France)", "🇷🇪", "Afrique");
+  add("BRL FKF KLN MUN", "Allemagne", "🇩🇪", "Europe");
+  add("WN", "Autriche", "🇦🇹", "Europe");
+  add("ANVR BXL CHAR RDU", "Belgique", "🇧🇪", "Europe");
+  add("BRC BBO MLGA MEN", "Espagne", "🇪🇸", "Europe");
+  add("LDN MAN NCL", "Royaume-Uni", "🇬🇧", "Europe");
+  add("RA ROM MLN FLR VEN NAP", "Italie", "🇮🇹", "Europe");
+  add("AMS NOO RTD", "Pays-Bas", "🇳🇱", "Europe");
+  add("FAO PRT2", "Portugal", "🇵🇹", "Europe");
+  add("LJU", "Slovénie", "🇸🇮", "Europe");
+  add("HALM VSB", "Suède", "🇸🇪", "Europe");
+  add("ANZR BSL BRN GNV LSN", "Suisse", "🇨🇭", "Europe");
+  add("GRU", "Bosnie-Herzégovine", "🇧🇦", "Europe");
+  add("IST", "Turquie", "🇹🇷", "Europe");
+  add("LA MIA NY SD SF", "États-Unis", "🇺🇸", "Amérique du Nord");
+  add("CCU", "Mexique", "🇲🇽", "Amérique du Nord");
+  add("SP RIO", "Brésil", "🇧🇷", "Amérique du Sud");
+  add("POTI", "Bolivie", "🇧🇴", "Amérique du Sud");
+  add("PTI", "Haïti", "🇭🇹", "Amérique du Nord");
+  add("HK", "Hong Kong", "🇭🇰", "Asie");
+  add("TK", "Japon", "🇯🇵", "Asie");
+  add("DHK", "Bangladesh", "🇧🇩", "Asie");
+  add("BT", "Bhoutan", "🇧🇹", "Asie");
+  add("SL DJN", "Corée du Sud", "🇰🇷", "Asie");
+  add("VRN", "Inde", "🇮🇳", "Asie");
+  add("ELT", "Israël", "🇮🇱", "Asie");
+  add("KAT", "Népal", "🇳🇵", "Asie");
+  add("BGK", "Thaïlande", "🇹🇭", "Asie");
+  add("MBSA", "Kenya", "🇰🇪", "Afrique");
+  add("MRAK RBA CAS", "Maroc", "🇲🇦", "Afrique");
+  add("GRTI", "Tanzanie", "🇹🇿", "Afrique");
+  add("DJBA", "Tunisie", "🇹🇳", "Afrique");
+  add("MLB PRT", "Australie", "🇦🇺", "Océanie");
+  add("SPACE", "Espace", "🛰️", "Espace");
+  return t;
+})();
+
 /* ---------- utilitaires ---------- */
 
 async function fetchCached(name, url, options) {
@@ -350,11 +392,15 @@ async function main() {
   for (const [code, c] of Object.entries(cities)) {
     if (c.count < 2 && c.lats.length === 0) continue; // scories improbables
     const avg = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0;
+    const geo = COUNTRY_INFO[code] ?? { country: "Ailleurs", flag: "🌍", continent: "Ailleurs" };
     citiesOut[code] = {
       name: ref[code]?.name ?? CITY_NAMES[code] ?? code,
       lat: Math.round(avg(c.lats) * 1e5) / 1e5,
       lng: Math.round(avg(c.lngs) * 1e5) / 1e5,
       count: c.count,
+      flag: geo.flag,
+      country: geo.country,
+      continent: geo.continent,
       ...(ref[code]?.official ? { official: ref[code].official } : {}),
       ...(zonedCities.has(code) ? { zones: true } : {})
     };

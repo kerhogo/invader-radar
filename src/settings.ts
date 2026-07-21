@@ -32,7 +32,14 @@ export function renderSettings(): void {
 
     <div class="card">
       <h2>Chasse</h2>
-      ${toggleRow("s-sounds", "Sons du radar", "Tics type compteur Geiger quand tu chauffes", s.sounds)}
+      <div class="field">
+        <label>Distance d'échelle du radar : <b id="s-scale-label">${s.scaleDistance} m</b></label>
+        <input type="range" id="s-scale" min="30" max="1000" step="10" value="${s.scaleDistance}" />
+        <p class="hint">Portée « du plus froid au plus chaud ». En dessous de cette distance, le radar chauffe et la distance chiffrée se masque.</p>
+      </div>
+      ${toggleRow("s-sounds", "Sons du radar", "Blip sonar doux dont la cadence s'accélère quand tu chauffes", s.sounds)}
+      ${toggleRow("s-haptics", "Vibrations", "Cadence qui s'accélère en approchant (Android — non supporté par iOS web)", s.haptics)}
+      ${toggleRow("s-distance", "Toujours afficher la distance", "Sinon elle disparaît sous la distance d'échelle pour garder la chasse au tâtonnement", s.showDistanceAlways)}
     </div>
 
     <div class="card">
@@ -68,7 +75,7 @@ function toggleRow(id: string, label: string, sub: string, checked: boolean): st
 
 function wire(): void {
   const root = el();
-  const bind = (id: string, key: "includeDamaged" | "includeHidden" | "includeUnknown" | "sounds") => {
+  const bind = (id: string, key: "includeDamaged" | "includeHidden" | "includeUnknown" | "sounds" | "haptics" | "showDistanceAlways") => {
     root.querySelector<HTMLInputElement>(`#${id}`)!.addEventListener("change", ev => {
       saveSettings({ [key]: (ev.target as HTMLInputElement).checked });
     });
@@ -77,6 +84,13 @@ function wire(): void {
   bind("s-hidden", "includeHidden");
   bind("s-unknown", "includeUnknown");
   bind("s-sounds", "sounds");
+  bind("s-haptics", "haptics");
+  bind("s-distance", "showDistanceAlways");
+
+  const scale = root.querySelector<HTMLInputElement>("#s-scale")!;
+  const scaleLabel = root.querySelector<HTMLElement>("#s-scale-label")!;
+  scale.addEventListener("input", () => { scaleLabel.textContent = `${scale.value} m`; });
+  scale.addEventListener("change", () => saveSettings({ scaleDistance: Number(scale.value) }));
 
   root.querySelector<HTMLButtonElement>("#s-uid-save")!.addEventListener("click", async () => {
     const uid = root.querySelector<HTMLInputElement>("#s-uid")!.value.trim();

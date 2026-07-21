@@ -1,9 +1,9 @@
-"""Génère les icônes PNG de la PWA (invader pixel-art sur fond dégradé violet).
+"""Génère les icônes PNG de la PWA — style « écran radar » :
+fond navy en dégradé, anneaux concentriques, invader blanc lumineux.
 
-Écrit en Python pur (zlib + struct) pour ne dépendre d'aucune lib d'image.
-Usage : python scripts/gen_icons.py
+Python pur (zlib + struct), aucune lib d'image. Usage : python scripts/gen_icons.py
 """
-import struct, zlib, os
+import struct, zlib, os, math
 
 SPRITE = [
     "..X.....X..",
@@ -16,9 +16,8 @@ SPRITE = [
     "...XX.XX...",
 ]
 
-TOP = (0x8D, 0x75, 0xF2)     # violet clair
-BOTTOM = (0x4C, 0x35, 0xA8)  # violet profond
-FG = (0xFF, 0xFF, 0xFF)
+TOP = (0x0C, 0x1F, 0x3F)     # navy clair (haut)
+BOTTOM = (0x07, 0x10, 0x24)  # navy profond (bas)
 
 
 def png(width, height, rows):
@@ -37,21 +36,46 @@ def png(width, height, rows):
 
 def make_icon(size):
     gw, gh = len(SPRITE[0]), len(SPRITE)
-    # sprite centré, occupant ~62 % de la largeur
-    px = max(1, int(size * 0.62 / gw))
+    px = max(1, int(size * 0.46 / gw))
     ox = (size - gw * px) // 2
     oy = (size - gh * px) // 2
+    cx = cy = size / 2
+
+    # masque sprite + halo (carte de distance au pixel allumé le plus proche)
+    lit = [(ox + (x + 0.5) * px, oy + (y + 0.5) * px)
+           for y in range(gh) for x in range(gw) if SPRITE[y][x] == "X"]
+
+    def sprite_hit(x, y):
+        gx, gy = int((x - ox) // px), int((y - oy) // px)
+        return 0 <= gx < gw and 0 <= gy < gh and SPRITE[gy][gx] == "X"
+
+    rings = [(0.455, 0.022, 0.42), (0.30, 0.014, 0.20)]  # (rayon, épaisseur, alpha) relatifs
+
     rows = []
+    step = max(4, px)  # échantillonnage du halo (approx suffisante)
     for y in range(size):
         t = y / (size - 1)
-        bg = tuple(int(TOP[i] + (BOTTOM[i] - TOP[i]) * t) for i in range(3))
+        base = tuple(int(TOP[i] + (BOTTOM[i] - TOP[i]) * t) for i in range(3))
         row = []
         for x in range(size):
-            gx, gy = (x - ox) // px, (y - oy) // px
-            if 0 <= gx < gw and 0 <= gy < gh and SPRITE[gy][gx] == "X":
-                row.extend(FG)
-            else:
-                row.extend(bg)
+            if sprite_hit(x, y):
+                row.extend((255, 255, 255))
+                continue
+            r, g, b = base
+            # halo autour du sprite
+            d2min = min((x - lx) ** 2 + (y - ly) ** 2 for (lx, ly) in lit[:: max(1, len(lit) // 20)])
+            glow = math.exp(-d2min / (2 * (size * 0.055) ** 2)) * 0.34
+            # anneaux
+            dist = math.hypot(x - cx, y - cy) / size
+            ring_a = 0.0
+            for (rr, th, al) in rings:
+                ring_a = max(ring_a, al * math.exp(-((dist - rr) ** 2) / (2 * (th / 2.2) ** 2)))
+            a = min(1.0, glow + ring_a)
+            row.extend((
+                int(r + (255 - r) * a),
+                int(g + (255 - g) * a),
+                int(b + (255 - b) * a),
+            ))
         rows.append(row)
     return png(size, size, rows)
 

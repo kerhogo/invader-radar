@@ -13,17 +13,18 @@ export const D_HOT = 3;
 /** Pivot de la courbe : à cette distance on est à ~50 % de chaleur. */
 export const D_MID = 30;
 
+/** Distance d'échelle par défaut du radar (réglable par l'utilisateur). */
+export const DEFAULT_SCALE = 200;
+
 /**
- * Chaleur 0 (froid) → 1 (brûlant) pour une distance en mètres.
- * Courbe en deux segments log : D_COLD→D_MID couvre 0→0.5, D_MID→D_HOT couvre 0.5→1.
- * → la moitié de la dynamique est concentrée sous 30 m, comme demandé.
+ * Chaleur 0 (froid) → 1 (brûlant), PROPORTIONNELLE à la distance rapportée à
+ * l'échelle choisie (« ultra-précise à chaque pas ») : chaque mètre gagné se
+ * voit, jusqu'à D_HOT (~3 m) où la chaleur est maximale.
  */
-export function heat(distance: number): number {
-  const d = Math.max(D_HOT, Math.min(D_COLD, distance));
-  const seg = (from: number, to: number, x: number) =>
-    (Math.log(from) - Math.log(x)) / (Math.log(from) - Math.log(to));
-  if (d > D_MID) return 0.5 * seg(D_COLD, D_MID, d);
-  return 0.5 + 0.5 * seg(D_MID, D_HOT, d);
+export function heat(distance: number, scale: number = DEFAULT_SCALE): number {
+  if (distance >= scale) return 0;
+  const d = Math.max(D_HOT, distance);
+  return 1 - (d - D_HOT) / Math.max(1, scale - D_HOT);
 }
 
 /** Couleur de fond plein écran selon la chaleur (bleu nuit → orange → rouge). */

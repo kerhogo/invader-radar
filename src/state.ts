@@ -6,7 +6,10 @@ const GALLERY_KEY = "ir.gallery.v1";
 const defaults: Settings = {
   uid: "",
   radius: 150,
+  scaleDistance: 200,
   sounds: true,
+  haptics: true,
+  showDistanceAlways: false,
   includeDamaged: true,
   includeHidden: false,
   includeUnknown: true,

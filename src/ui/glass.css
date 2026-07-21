@@ -147,6 +147,7 @@ body {
 
 .tab {
   position: relative;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -161,10 +162,32 @@ body {
   font-size: 10.5px;
   font-weight: 600;
   cursor: pointer;
-  transition: color 0.18s ease, background 0.18s ease;
+  transition: color 0.2s ease;
 }
-.tab.active { color: var(--accent); background: var(--accent-soft); }
+.tab.active { color: var(--accent); }
 .tab:active { transform: scale(0.95); }
+
+/* bulle liquide translucide sous l'onglet actif / suivie au drag */
+.tab-bubble {
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  left: 0;
+  z-index: 0;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  border: 0.5px solid rgba(124, 199, 255, 0.28);
+  -webkit-backdrop-filter: blur(8px) saturate(160%);
+  backdrop-filter: blur(8px) saturate(160%);
+  transition: transform 0.42s cubic-bezier(0.34, 1.56, 0.64, 1), width 0.42s cubic-bezier(0.34, 1.56, 0.64, 1);
+  pointer-events: none;
+  opacity: 0;
+}
+.tab-bubble.lit { opacity: 1; }
+.tabbar.dragging .tab-bubble {
+  transition: transform 0.18s ease, width 0.18s ease;
+  background: rgba(56, 168, 255, 0.28);
+}
 
 .tab .badge {
   position: absolute;
@@ -560,6 +583,128 @@ a { color: var(--ice); }
   font-weight: 600;
 }
 .gps-chip.warn { background: rgba(255, 159, 10, 0.4); }
+
+/* ---------- Mini-widget radar actif (autres onglets) ---------- */
+
+/* pilule compacte, gabarit Dynamic Island — discrète, centrée au-dessus de la tab bar */
+#hunt-widget {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: var(--tab-clear);
+  z-index: 49;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  border: 0.5px solid rgba(255, 255, 255, 0.22);
+  border-radius: 999px;
+  padding: 6px 13px;
+  color: #fff;
+  font: 700 12px var(--font);
+  font-variant-numeric: tabular-nums;
+  background: #0b1d3a;
+  box-shadow: 0 6px 20px rgba(2, 8, 20, 0.5);
+  cursor: pointer;
+  animation: view-in 0.25s ease;
+  transition: background 1s ease;
+}
+#hunt-widget .hw-sprite { width: 15px; height: auto; filter: drop-shadow(0 0 5px rgba(255,255,255,0.5)); }
+body[data-view="hunt"] #hunt-widget { display: none; }
+
+.btn.icon-only.spinning svg { animation: spin 0.8s linear infinite; }
+
+/* actions de chasse : Terminer + bouton capture/refresh */
+.hunt-actions { display: flex; gap: 10px; }
+.hunt-actions .btn { flex: 1; }
+.btn.icon-only { flex: 0 0 58px; display: grid; place-items: center; padding: 0; }
+
+/* bulle « liquid glass » au clic sur un onglet */
+.tab { overflow: hidden; }
+.tab.pop { animation: tab-pop 0.45s cubic-bezier(0.22, 1, 0.36, 1); }
+@keyframes tab-pop {
+  0% { transform: scale(0.9); }
+  45% { transform: scale(1.07); }
+  100% { transform: scale(1); }
+}
+.tab.pop::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(circle at 50% 30%, rgba(124, 199, 255, 0.35), transparent 65%);
+  animation: tab-glow 0.5s ease-out forwards;
+  pointer-events: none;
+}
+@keyframes tab-glow { from { opacity: 1; } to { opacity: 0; } }
+
+/* ---------- Dashboard : groupes et détail ville ---------- */
+
+.group-title {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--ice);
+  opacity: 0.8;
+  margin: 16px 2px 2px;
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+}
+.country-title { font-size: 13.5px; font-weight: 700; margin: 10px 2px 0; opacity: 0.9; }
+.city-detail {
+  margin: 2px 0 10px 8px;
+  padding: 2px 0 4px 12px;
+  border-left: 2px solid var(--separator);
+}
+
+/* ---------- Feuille modale (tuto uid) ---------- */
+
+.sheet-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: rgba(4, 10, 22, 0.6);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  animation: view-in 0.2s ease;
+}
+.sheet {
+  position: relative;
+  width: 100%;
+  max-width: 620px;
+  max-height: 88dvh;
+  overflow-y: auto;
+  background: var(--bg-elev);
+  border: 0.5px solid var(--glass-border);
+  border-radius: 24px 24px 0 0;
+  padding: 22px 20px calc(var(--sab) + 28px);
+  box-shadow: 0 -12px 40px rgba(2, 8, 20, 0.6);
+  animation: sheet-in 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.sheet h3 { font-size: 21px; font-weight: 800; font-family: var(--font-rounded); margin-bottom: 6px; }
+.sheet .close {
+  position: absolute; top: 14px; right: 14px;
+  width: 30px; height: 30px;
+  border: none; border-radius: 50%;
+  background: rgba(148, 180, 232, 0.18); color: var(--text-2);
+  font-size: 15px; font-weight: 700; cursor: pointer;
+}
+.sheet .seg { margin: 14px 0; }
+.tuto-step { margin: 16px 0; }
+.tuto-step h4 {
+  font-size: 14px; font-weight: 800; color: var(--ice);
+  margin-bottom: 8px; letter-spacing: 0.2px;
+}
+.tuto-step ol { margin: 0; padding-left: 20px; }
+.tuto-step li { font-size: 13.5px; line-height: 1.5; margin: 7px 0; color: var(--text); }
+.tuto-step code {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 12px;
+  background: rgba(124, 199, 255, 0.12);
+  padding: 1px 5px; border-radius: 5px;
+  overflow-wrap: anywhere;
+}
 
 /* ---------- Nouveautés ---------- */
 
