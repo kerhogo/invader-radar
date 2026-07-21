@@ -1,6 +1,5 @@
 """Génère les icônes PNG de la PWA — style « écran radar » :
-fond navy en dégradé (texture), anneaux concentriques, invader blanc MAT
-(brillance/halo très réduits, comme demandé).
+fond navy uni, anneaux concentriques, invader blanc avec une très légère brillance.
 
 Python pur (zlib + struct), aucune lib d'image. Usage : python scripts/gen_icons.py
 """
@@ -17,8 +16,7 @@ SPRITE = [
     "...XX.XX...",
 ]
 
-TOP = (0x0C, 0x1F, 0x3F)     # navy clair (haut)
-BOTTOM = (0x07, 0x10, 0x24)  # navy profond (bas)
+NAVY = (0x0B, 0x1D, 0x3A)    # fond navy plein (pas de dégradé)
 
 
 def png(width, height, rows):
@@ -53,19 +51,16 @@ def make_icon(size):
     rings = [(0.455, 0.022, 0.42), (0.30, 0.014, 0.20)]  # (rayon, épaisseur, alpha) relatifs
 
     rows = []
-    step = max(4, px)  # échantillonnage du halo (approx suffisante)
     for y in range(size):
-        t = y / (size - 1)
-        base = tuple(int(TOP[i] + (BOTTOM[i] - TOP[i]) * t) for i in range(3))
         row = []
         for x in range(size):
             if sprite_hit(x, y):
                 row.extend((255, 255, 255))
                 continue
-            r, g, b = base
-            # halo autour du sprite — très discret (invader quasi mat)
+            r, g, b = NAVY  # fond navy uni
+            # halo autour du sprite — très léger
             d2min = min((x - lx) ** 2 + (y - ly) ** 2 for (lx, ly) in lit[:: max(1, len(lit) // 20)])
-            glow = math.exp(-d2min / (2 * (size * 0.035) ** 2)) * 0.10
+            glow = math.exp(-d2min / (2 * (size * 0.045) ** 2)) * 0.16
             # anneaux
             dist = math.hypot(x - cx, y - cy) / size
             ring_a = 0.0
