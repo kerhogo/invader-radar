@@ -25,18 +25,7 @@ async function showView(name: ViewName): Promise<void> {
   document.body.dataset.view = name;
 
   for (const v of views) v.classList.toggle("active", v.id === `view-${name}`);
-  let activeTab: HTMLButtonElement | null = null;
-  for (const t of tabs) {
-    const active = t.dataset.view === name;
-    t.classList.toggle("active", active);
-    if (active) {
-      activeTab = t;
-      t.classList.remove("pop");
-      void t.offsetWidth; // relance l'animation « bulle »
-      t.classList.add("pop");
-    }
-  }
-  if (activeTab) moveBubble(activeTab);
+  for (const t of tabs) t.classList.toggle("active", t.dataset.view === name);
   const active = document.getElementById(`view-${name}`)!;
   title.textContent = active.dataset.title ?? "Invader Radar";
   topbar.style.display = name === "map" || name === "hunt" ? "none" : "";
@@ -65,23 +54,10 @@ for (const t of tabs) {
 }
 document.getElementById("btn-settings")!.addEventListener("click", () => showView("settings"));
 
-/* Bulle « liquid glass » : posée sous l'onglet actif, et suit le doigt au drag. */
-const tabbar = document.getElementById("tabbar")!;
-const bubble = document.createElement("span");
-bubble.className = "tab-bubble";
-tabbar.appendChild(bubble);
-
-function moveBubble(t: HTMLButtonElement, lit = true): void {
-  const br = tabbar.getBoundingClientRect();
-  const r = t.getBoundingClientRect();
-  if (r.width === 0) return; // onglet masqué (avant layout)
-  bubble.style.width = `${r.width}px`;
-  bubble.style.transform = `translateX(${r.left - br.left}px)`;
-  bubble.classList.toggle("lit", lit);
-}
-
+/* Glisser le doigt le long de la barre change d'onglet (sélection au relâcher) —
+   sans bulle : l'onglet survolé s'illumine simplement. */
 (function tabDrag(): void {
-  const bar = tabbar;
+  const bar = document.getElementById("tabbar")!;
   let dragging = false;
 
   const tabAt = (x: number): HTMLButtonElement | null => {
@@ -91,24 +67,26 @@ function moveBubble(t: HTMLButtonElement, lit = true): void {
     }
     return null;
   };
+  const preview = (t: HTMLButtonElement | null): void => {
+    for (const b of tabs) b.classList.toggle("hover", b === t);
+  };
+
   bar.addEventListener("touchstart", ev => {
     const t = tabAt(ev.touches[0].clientX);
     if (!t) return;
     dragging = true;
-    moveBubble(t);
-    bar.classList.add("dragging");
+    preview(t);
   }, { passive: true });
 
   bar.addEventListener("touchmove", ev => {
     if (!dragging) return;
-    const t = tabAt(ev.touches[0].clientX);
-    if (t) moveBubble(t);
+    preview(tabAt(ev.touches[0].clientX));
   }, { passive: true });
 
   const end = (ev: TouchEvent): void => {
     if (!dragging) return;
     dragging = false;
-    bar.classList.remove("dragging");
+    preview(null);
     const t = tabAt(ev.changedTouches[0].clientX);
     if (t) showView(t.dataset.view as ViewName);
   };

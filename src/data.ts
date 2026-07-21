@@ -83,6 +83,43 @@ export function zoneStats(city: string, level: "z1" | "z2"): Map<string, ZoneSta
   return out;
 }
 
+export interface ZoneNode extends ZoneStats {
+  children: ZoneStats[]; // sous-zones (quartiers d'un arrondissement)
+}
+
+/**
+ * Hiérarchie à 2 niveaux pour une ville : arrondissements (z2) → quartiers (z1).
+ * Les invaders sans z2 (banlieue mono-commune) sont regroupés sous leur z1
+ * comme arrondissement racine, pour rester lisibles.
+ */
+export function zoneHierarchy(city: string): ZoneNode[] {
+  const parents = new Map<string, ZoneNode>();
+  if (!state.dataset) return [];
+  const bump = (z: ZoneStats, inv: Invader) => {
+    z.active++;
+    if (isFlashed(inv)) z.found++;
+    else if (inv.indoor) z.indoorLeft++;
+  };
+  for (const inv of state.dataset.items) {
+    if (inv.city !== city || !isActive(inv)) continue;
+    const p = inv.z2 ?? inv.z1;      // arrondissement, sinon la zone elle-même
+    if (!p) continue;
+    let node = parents.get(p);
+    if (!node) { node = { key: p, active: 0, found: 0, indoorLeft: 0, children: [] }; parents.set(p, node); }
+    bump(node, inv);
+    // quartier (z1) distinct de l'arrondissement → enfant
+    if (inv.z1 && inv.z1 !== p) {
+      let child = node.children.find(c => c.key === inv.z1);
+      if (!child) { child = { key: inv.z1, active: 0, found: 0, indoorLeft: 0 }; node.children.push(child); }
+      bump(child, inv);
+    }
+  }
+  const byLeft = (a: ZoneStats, b: ZoneStats) => (b.active - b.found) - (a.active - a.found) || b.active - a.active;
+  const list = [...parents.values()].sort(byLeft);
+  for (const n of list) n.children.sort(byLeft);
+  return list;
+}
+
 export interface CityStats {
   code: string;
   name: string;

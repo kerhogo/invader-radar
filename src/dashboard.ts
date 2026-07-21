@@ -1,13 +1,14 @@
 import { state, setGallery } from "./state";
 import { fetchGallery, ApiError } from "./api";
-import { cityStats, zoneStats } from "./data";
+import { cityStats, zoneHierarchy } from "./data";
 import type { CityStats } from "./data";
 
 const el = () => document.getElementById("view-dashboard")!;
-const expanded = new Set<string>();
+let openCity: string | null = null;      // accordéon exclusif : une seule ville
+let openArr: string | null = null;       // et un seul arrondissement dans cette ville
 let rowsWired = false;
 
-const CONTINENT_ORDER = ["Europe", "Amérique du Nord", "Amérique du Sud", "Afrique", "Asie", "Océanie", "Espace", "Ailleurs"];
+const CONTINENT_ORDER = ["Europe", "Amérique du Nord", "Amérique du Sud", "Afrique", "Asie", "Océanie", "Espace", "Autres"];
 
 export function renderDashboard(): void {
   const root = el();
@@ -43,7 +44,7 @@ export function renderDashboard(): void {
 
     <div class="card">
       <h2>Mes villes</h2>
-      ${played.map(c => cityRow(c)).join("") || `<p class="hint">Aucun flash pour l'instant — la chasse commence !</p>`}
+      ${played.map(c => cityRow(c, true)).join("") || `<p class="hint">Aucun flash pour l'instant — la chasse commence !</p>`}
     </div>
 
     <div class="card">
@@ -70,7 +71,7 @@ export function renderDashboard(): void {
 
 /* ---------- Villes ---------- */
 
-function cityRow(c: CityStats): string {
+function cityRow(c: CityStats, showFlag: boolean): string {
   const info = state.dataset?.cities[c.code];
   const denom = c.official ?? c.active;
   const left = Math.max(0, c.active - c.found);
@@ -78,11 +79,12 @@ function cityRow(c: CityStats): string {
   const done = denom > 0 && c.foundTotal >= denom;
   const subs: string[] = [`${fmt(left)} restants`];
   if (c.unlocated > 0) subs.push(`${fmt(c.unlocated)} non localisés`);
-  const isOpen = expanded.has(c.code);
+  const flag = showFlag && info?.flag ? `${info.flag} ` : "";
+  const isOpen = openCity === c.code;
   return `
     <div class="row tappable" data-code="${c.code}">
       <div class="grow">
-        <div class="title">${info?.flag ?? ""} ${escapeHtml(c.name)}</div>
+        <div class="title">${flag}${escapeHtml(c.name)}</div>
         <div class="sub">${subs.join(" · ")}</div>
         <div class="progress ${done ? "done" : ""}"><i style="width:${pct}%"></i></div>
       </div>
@@ -91,22 +93,43 @@ function cityRow(c: CityStats): string {
     ${isOpen ? cityDetail(c) : ""}`;
 }
 
-function cityDetail(c: CityStats): string {
-  const z1 = [...zoneStats(c.code, "z1").values()]
-    .map(z => ({ ...z, left: z.active - z.found }))
-    .sort((a, b) => b.left - a.left || b.active - a.active);
-  const rows = z1.slice(0, 14).map(z => `
-    <div class="row">
+function zoneLine(key: string, found: number, active: number, indoorLeft: number, opts: { child?: boolean; toggle?: boolean } = {}): string {
+  return `
+    <div class="row ${opts.toggle ? "tappable" : ""} ${opts.child ? "quartier" : ""}" ${opts.toggle ? `data-arr="${escapeHtml(key)}"` : ""}>
       <div class="grow">
-        <div class="title" style="font-size:14px">${escapeHtml(z.key)}</div>
-        ${z.indoorLeft ? `<div class="sub">dont ${z.indoorLeft} en intérieur</div>` : ""}
+        <div class="title" style="font-size:14px">${opts.toggle ? "▸ " : ""}${escapeHtml(key)}</div>
+        ${indoorLeft ? `<div class="sub">dont ${indoorLeft} en intérieur</div>` : ""}
       </div>
-      <div class="val" style="font-size:13.5px">${fmt(z.found)}<span style="color:var(--text-2)">/${fmt(z.active)}</span></div>
-    </div>`).join("");
+      <div class="val" style="font-size:13.5px">${fmt(found)}<span style="color:var(--text-2)">/${fmt(active)}</span></div>
+    </div>`;
+}
+
+function cityDetail(c: CityStats): string {
+  const tree = zoneHierarchy(c.code);
+  const hasChildren = tree.some(n => n.children.length > 0);
+  let body: string;
+
+  if (tree.length === 0) {
+    body = `<p class="hint">Pas de sous-découpage localisé pour cette ville.</p>`;
+  } else if (!hasChildren) {
+    // un seul niveau (commune unique) : liste directe
+    body = tree.slice(0, 20).map(n => zoneLine(n.key, n.found, n.active, n.indoorLeft)).join("");
+  } else {
+    // deux niveaux : arrondissements (repliés), quartiers au clic (exclusif)
+    body = tree.map(n => {
+      const open = openArr === n.key;
+      const arr = zoneLine(n.key, n.found, n.active, n.indoorLeft, { toggle: true });
+      const kids = open
+        ? `<div class="quartiers">${n.children.map(k => zoneLine(k.key, k.found, k.active, k.indoorLeft, { child: true })).join("")
+            || `<p class="hint" style="margin-left:12px">Pas de quartier localisé ici.</p>`}</div>`
+        : "";
+      return arr.replace("▸", open ? "▾" : "▸") + kids;
+    }).join("");
+  }
+
   return `
     <div class="city-detail" data-detail="${c.code}">
-      ${rows || `<p class="hint">Pas de sous-découpage localisé pour cette ville.</p>`}
-      ${z1.length > 14 ? `<p class="hint">et ${z1.length - 14} autres zones…</p>` : ""}
+      ${body}
       <button class="btn secondary" data-map-code="${c.code}" style="margin-top:8px;padding:11px">Voir sur la carte</button>
     </div>`;
 }
@@ -121,10 +144,20 @@ function wireRows(root: HTMLElement): void {
       document.dispatchEvent(new CustomEvent("focus-city", { detail: mapBtn.dataset.mapCode }));
       return;
     }
+    // clic sur un arrondissement → déplie/replie ses quartiers (exclusif)
+    const arr = target.closest<HTMLElement>(".row[data-arr]");
+    if (arr) {
+      const key = arr.dataset.arr!;
+      openArr = openArr === key ? null : key;
+      renderDashboard();
+      return;
+    }
+    // clic sur une ville → accordéon exclusif (referme les autres + réinit arrondissement)
     const row = target.closest<HTMLElement>(".row[data-code]");
     if (!row) return;
     const code = row.dataset.code!;
-    expanded.has(code) ? expanded.delete(code) : expanded.add(code);
+    openCity = openCity === code ? null : code;
+    openArr = null;
     renderDashboard();
   });
 }
@@ -136,24 +169,27 @@ function grouped(others: CityStats[]): string {
   const byContinent = new Map<string, Map<string, CityStats[]>>();
   for (const c of others) {
     const info = state.dataset?.cities[c.code];
-    const cont = info?.continent ?? "Ailleurs";
-    const country = info?.country ?? "Ailleurs";
+    const cont = info?.continent || "Autres";
+    const country = info?.country || "Autres";
     if (!byContinent.has(cont)) byContinent.set(cont, new Map());
     const byCountry = byContinent.get(cont)!;
     if (!byCountry.has(country)) byCountry.set(country, []);
     byCountry.get(country)!.push(c);
   }
 
-  return CONTINENT_ORDER.filter(cont => byContinent.has(cont)).map(cont => {
+  const order = [...CONTINENT_ORDER.filter(cont => byContinent.has(cont)),
+    ...[...byContinent.keys()].filter(k => !CONTINENT_ORDER.includes(k))];
+
+  return order.map(cont => {
     const byCountry = byContinent.get(cont)!;
     const countries = [...byCountry.entries()].sort((a, b) => a[0].localeCompare(b[0], "fr"));
     return `
-      <div class="group-title">${cont}</div>
+      <div class="group-title">${escapeHtml(cont)}</div>
       ${countries.map(([country, list]) => {
         const flag = state.dataset?.cities[list[0].code]?.flag ?? "";
         return `
-          <div class="country-title">${flag} ${escapeHtml(country)}</div>
-          ${list.sort((a, b) => b.active - a.active).map(c => cityRow(c)).join("")}`;
+          <div class="country-title">${flag ? flag + " " : ""}${escapeHtml(country)}</div>
+          ${list.sort((a, b) => b.active - a.active).map(c => cityRow(c, false)).join("")}`;
       }).join("")}`;
   }).join("");
 }

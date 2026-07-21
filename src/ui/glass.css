@@ -38,6 +38,9 @@
 
 * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
 
+/* l'attribut hidden doit toujours l'emporter, même sur .btn.icon-only (display:grid) */
+[hidden] { display: none !important; }
+
 html, body { height: 100%; overscroll-behavior: none; }
 
 body {
@@ -164,30 +167,10 @@ body {
   cursor: pointer;
   transition: color 0.2s ease;
 }
-.tab.active { color: var(--accent); }
+/* indicateur d'onglet actif : pastille sobre et statique */
+.tab.active { color: var(--accent); background: var(--accent-soft); }
+.tab.hover { background: var(--accent-soft); } /* survol pendant le drag sur la barre */
 .tab:active { transform: scale(0.95); }
-
-/* bulle liquide translucide sous l'onglet actif / suivie au drag */
-.tab-bubble {
-  position: absolute;
-  top: 6px;
-  bottom: 6px;
-  left: 0;
-  z-index: 0;
-  border-radius: 999px;
-  background: var(--accent-soft);
-  border: 0.5px solid rgba(124, 199, 255, 0.28);
-  -webkit-backdrop-filter: blur(8px) saturate(160%);
-  backdrop-filter: blur(8px) saturate(160%);
-  transition: transform 0.42s cubic-bezier(0.34, 1.56, 0.64, 1), width 0.42s cubic-bezier(0.34, 1.56, 0.64, 1);
-  pointer-events: none;
-  opacity: 0;
-}
-.tab-bubble.lit { opacity: 1; }
-.tabbar.dragging .tab-bubble {
-  transition: transform 0.18s ease, width 0.18s ease;
-  background: rgba(56, 168, 255, 0.28);
-}
 
 .tab .badge {
   position: absolute;
@@ -506,7 +489,7 @@ a { color: var(--ice); }
 }
 .radar-stage {
   position: relative;
-  height: min(100%, min(72vw, 350px));
+  height: min(100%, min(88vw, 440px));
   aspect-ratio: 1;
   display: grid;
   place-items: center;
@@ -518,7 +501,7 @@ a { color: var(--ice); }
   border-radius: 50%;
   border: 2.5px solid rgba(255, 255, 255, 0.85);
   box-shadow: 0 0 16px rgba(255, 255, 255, 0.16), 0 0 30px rgba(255,255,255,0.05) inset;
-  transition: width 0.7s cubic-bezier(0.22, 1, 0.36, 1), height 0.7s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.4s;
+  transition: width 0.3s cubic-bezier(0.22, 1, 0.36, 1), height 0.3s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.4s;
 }
 .radar-pulse {
   position: absolute;
@@ -608,7 +591,7 @@ a { color: var(--ice); }
   animation: view-in 0.25s ease;
   transition: background 1s ease;
 }
-#hunt-widget .hw-sprite { width: 15px; height: auto; filter: drop-shadow(0 0 5px rgba(255,255,255,0.5)); }
+#hunt-widget .hw-sprite { width: 15px; height: auto; filter: drop-shadow(0 0 2px rgba(255,255,255,0.28)); }
 body[data-view="hunt"] #hunt-widget { display: none; }
 
 .btn.icon-only.spinning svg { animation: spin 0.8s linear infinite; }
@@ -617,25 +600,6 @@ body[data-view="hunt"] #hunt-widget { display: none; }
 .hunt-actions { display: flex; gap: 10px; }
 .hunt-actions .btn { flex: 1; }
 .btn.icon-only { flex: 0 0 58px; display: grid; place-items: center; padding: 0; }
-
-/* bulle « liquid glass » au clic sur un onglet */
-.tab { overflow: hidden; }
-.tab.pop { animation: tab-pop 0.45s cubic-bezier(0.22, 1, 0.36, 1); }
-@keyframes tab-pop {
-  0% { transform: scale(0.9); }
-  45% { transform: scale(1.07); }
-  100% { transform: scale(1); }
-}
-.tab.pop::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: radial-gradient(circle at 50% 30%, rgba(124, 199, 255, 0.35), transparent 65%);
-  animation: tab-glow 0.5s ease-out forwards;
-  pointer-events: none;
-}
-@keyframes tab-glow { from { opacity: 1; } to { opacity: 0; } }
 
 /* ---------- Dashboard : groupes et détail ville ---------- */
 
@@ -654,6 +618,14 @@ body[data-view="hunt"] #hunt-widget { display: none; }
   padding: 2px 0 4px 12px;
   border-left: 2px solid var(--separator);
 }
+.city-detail .row[data-arr] .title { font-weight: 700; }
+.quartiers {
+  margin-left: 12px;
+  padding-left: 10px;
+  border-left: 1.5px solid var(--separator);
+}
+.quartiers .row { padding: 8px 2px; }
+.quartiers .row .title { opacity: 0.9; }
 
 /* ---------- Feuille modale (tuto uid) ---------- */
 

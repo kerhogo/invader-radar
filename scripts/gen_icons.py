@@ -1,5 +1,6 @@
 """Génère les icônes PNG de la PWA — style « écran radar » :
-fond navy en dégradé, anneaux concentriques, invader blanc lumineux.
+fond navy en dégradé (texture), anneaux concentriques, invader blanc MAT
+(brillance/halo très réduits, comme demandé).
 
 Python pur (zlib + struct), aucune lib d'image. Usage : python scripts/gen_icons.py
 """
@@ -62,9 +63,9 @@ def make_icon(size):
                 row.extend((255, 255, 255))
                 continue
             r, g, b = base
-            # halo autour du sprite
+            # halo autour du sprite — très discret (invader quasi mat)
             d2min = min((x - lx) ** 2 + (y - ly) ** 2 for (lx, ly) in lit[:: max(1, len(lit) // 20)])
-            glow = math.exp(-d2min / (2 * (size * 0.055) ** 2)) * 0.34
+            glow = math.exp(-d2min / (2 * (size * 0.035) ** 2)) * 0.10
             # anneaux
             dist = math.hypot(x - cx, y - cy) / size
             ring_a = 0.0

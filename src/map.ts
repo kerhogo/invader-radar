@@ -23,8 +23,8 @@ const zoneLayers = new Set<string>();
 
 /* Seuils de zoom : bulles monde → arrondissements/communes tôt au dézoom → quartiers */
 const Z_BUBBLE_MAX = 9.3;
-const Z_MID: [number, number] = [9.3, 12.8];
-const Z_FINE: [number, number] = [12.8, 24];
+const Z_MID: [number, number] = [9.3, 11.2];
+const Z_FINE: [number, number] = [11.2, 24];
 
 /** Centre la carte sur une ville (appelé depuis le dashboard). */
 export function focusCity(code: string): void {

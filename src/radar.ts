@@ -325,9 +325,9 @@ function update(pos: GeolocationPosition): void {
   paint(currentHeat, { toFind, total, indoor });
   updateWidget(currentHeat, toFind, showDist ? distText : "");
 
-  // Flux capture : un invader à portée de flash
-  if (Number.isFinite(nearest) && nearest < 20 && captureState === "none") setCapture("camera");
-  else if ((!Number.isFinite(nearest) || nearest > 25) && captureState === "camera") setCapture("none");
+  // Flux capture : un invader à portée de flash (hystérésis 25 m / 30 m)
+  if (Number.isFinite(nearest) && nearest < 25 && captureState === "none") setCapture("camera");
+  else if ((!Number.isFinite(nearest) || nearest > 30) && captureState === "camera") setCapture("none");
 
   const acc = Math.round(accuracy);
   if (accuracy > 150) setChip(`🛰️ Calage GPS… ±${acc} m`);
