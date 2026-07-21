@@ -1,5 +1,7 @@
 """Génère les icônes PNG de la PWA — style « écran radar » :
-fond navy uni, anneaux concentriques, invader blanc avec une très légère brillance.
+fond navy en dégradé DIAGONAL façon icône Apple (plus prononcé en bas à gauche,
+plus clair en haut à droite) + léger grain de texture, anneaux concentriques,
+invader blanc avec une très légère brillance.
 
 Python pur (zlib + struct), aucune lib d'image. Usage : python scripts/gen_icons.py
 """
@@ -16,7 +18,8 @@ SPRITE = [
     "...XX.XX...",
 ]
 
-NAVY = (0x0B, 0x1D, 0x3A)    # fond navy plein (pas de dégradé)
+NAVY_BL = (0x05, 0x0F, 0x24)  # bas-gauche : navy prononcé (foncé)
+NAVY_TR = (0x12, 0x28, 0x4E)  # haut-droite : navy plus clair
 
 
 def png(width, height, rows):
@@ -50,6 +53,7 @@ def make_icon(size):
 
     rings = [(0.455, 0.022, 0.42), (0.30, 0.014, 0.20)]  # (rayon, épaisseur, alpha) relatifs
 
+    denom = 2 * (size - 1)
     rows = []
     for y in range(size):
         row = []
@@ -57,7 +61,11 @@ def make_icon(size):
             if sprite_hit(x, y):
                 row.extend((255, 255, 255))
                 continue
-            r, g, b = NAVY  # fond navy uni
+            # dégradé diagonal bas-gauche (0) → haut-droite (1)
+            diag = (x + (size - 1 - y)) / denom
+            # léger grain de texture déterministe (±2)
+            noise = (((x * 13 + y * 7) % 5) - 2) * 1.0
+            r, g, b = (NAVY_BL[i] + (NAVY_TR[i] - NAVY_BL[i]) * diag + noise for i in range(3))
             # halo autour du sprite — très léger
             d2min = min((x - lx) ** 2 + (y - ly) ** 2 for (lx, ly) in lit[:: max(1, len(lit) // 20)])
             glow = math.exp(-d2min / (2 * (size * 0.045) ** 2)) * 0.16
@@ -67,11 +75,9 @@ def make_icon(size):
             for (rr, th, al) in rings:
                 ring_a = max(ring_a, al * math.exp(-((dist - rr) ** 2) / (2 * (th / 2.2) ** 2)))
             a = min(1.0, glow + ring_a)
-            row.extend((
-                int(r + (255 - r) * a),
-                int(g + (255 - g) * a),
-                int(b + (255 - b) * a),
-            ))
+            row.extend(
+                max(0, min(255, int(v + (255 - v) * a))) for v in (r, g, b)
+            )
         rows.append(row)
     return png(size, size, rows)
 
