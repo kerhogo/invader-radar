@@ -54,8 +54,10 @@ for (const t of tabs) {
 }
 document.getElementById("btn-settings")!.addEventListener("click", () => showView("settings"));
 
-/* Glisser le doigt le long de la barre change d'onglet (sélection au relâcher) —
-   sans bulle : l'onglet survolé s'illumine simplement. */
+/* Glisser le doigt le long de la barre bascule la page EN TEMPS RÉEL : dès que
+   le doigt survole un autre onglet (touchmove), l'écran change immédiatement,
+   sans attendre le relâchement. showView() court-circuite si l'onglet est déjà
+   actif, donc le glissement au-dessus du même onglet ne coûte rien. */
 (function tabDrag(): void {
   const bar = document.getElementById("tabbar")!;
   let dragging = false;
@@ -63,33 +65,26 @@ document.getElementById("btn-settings")!.addEventListener("click", () => showVie
   const tabAt = (x: number): HTMLButtonElement | null => {
     for (const t of tabs) {
       const r = t.getBoundingClientRect();
-      if (x >= r.left && x <= r.right) return t;
+      if (x >= r.left - 4 && x <= r.right + 4) return t;
     }
     return null;
   };
-  const preview = (t: HTMLButtonElement | null): void => {
-    for (const b of tabs) b.classList.toggle("hover", b === t);
+  const goTo = (x: number): void => {
+    const t = tabAt(x);
+    if (t) showView(t.dataset.view as ViewName);
   };
 
   bar.addEventListener("touchstart", ev => {
-    const t = tabAt(ev.touches[0].clientX);
-    if (!t) return;
     dragging = true;
-    preview(t);
+    goTo(ev.touches[0].clientX);
   }, { passive: true });
 
   bar.addEventListener("touchmove", ev => {
     if (!dragging) return;
-    preview(tabAt(ev.touches[0].clientX));
+    goTo(ev.touches[0].clientX);
   }, { passive: true });
 
-  const end = (ev: TouchEvent): void => {
-    if (!dragging) return;
-    dragging = false;
-    preview(null);
-    const t = tabAt(ev.changedTouches[0].clientX);
-    if (t) showView(t.dataset.view as ViewName);
-  };
+  const end = (): void => { dragging = false; };
   bar.addEventListener("touchend", end, { passive: true });
   bar.addEventListener("touchcancel", end, { passive: true });
 })();

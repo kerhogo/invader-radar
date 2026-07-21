@@ -169,7 +169,6 @@ body {
 }
 /* indicateur d'onglet actif : pastille sobre et statique */
 .tab.active { color: var(--accent); background: var(--accent-soft); }
-.tab.hover { background: var(--accent-soft); } /* survol pendant le drag sur la barre */
 .tab:active { transform: scale(0.95); }
 
 .tab .badge {
