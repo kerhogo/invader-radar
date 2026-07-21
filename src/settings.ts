@@ -19,6 +19,7 @@ export function renderSettings(): void {
         <input type="text" id="s-uid" value="${escapeHtml(s.uid)}" autocomplete="off" spellcheck="false" />
       </div>
       <button class="btn secondary" id="s-uid-save">Enregistrer et vérifier</button>
+      <button class="btn secondary" id="s-uid-help" style="margin-top:8px">Comment récupérer mon uid ?</button>
       <p class="hint center" id="s-uid-msg"></p>
     </div>
 
@@ -75,6 +76,9 @@ function toggleRow(id: string, label: string, sub: string, checked: boolean): st
 
 function wire(): void {
   const root = el();
+  root.querySelector<HTMLButtonElement>("#s-uid-help")!.addEventListener("click", async () => {
+    (await import("./uidHelp")).openUidHelp();
+  });
   const bind = (id: string, key: "includeDamaged" | "includeHidden" | "includeUnknown" | "sounds" | "haptics" | "showDistanceAlways") => {
     root.querySelector<HTMLInputElement>(`#${id}`)!.addEventListener("change", ev => {
       saveSettings({ [key]: (ev.target as HTMLInputElement).checked });
