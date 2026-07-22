@@ -13,9 +13,10 @@ let wakeLock: any = null;
 let audioCtx: AudioContext | null = null;
 let tickTimer: number | null = null;
 let currentHeat = 0;
-let bestFix: { pos: GeolocationPosition; at: number } | null = null;
+let lastFix: { pos: GeolocationPosition; at: number } | null = null;
 let captureState: "none" | "camera" | "refresh" = "none";
 let pendingReturn = false;
+let sessionStartFlashed = new Set<string>();
 const trail: Array<{ lat: number; lng: number }> = [];
 
 /* Rayon : curseur logarithmique 3 m → 1 km (précis sur les petites valeurs). */
@@ -114,7 +115,7 @@ function wire(): void {
   });
   slider.addEventListener("change", () => {
     saveSettings({ radius: toRadius(Number(slider.value)) });
-    if (bestFix) update(bestFix.pos);
+    if (lastFix) update(lastFix.pos);
   });
   root.querySelector<HTMLButtonElement>("#btn-hunt")!.addEventListener("click", () => {
     running ? stop(true) : start();
@@ -134,7 +135,8 @@ function start(): void {
   }
   running = true;
   trail.length = 0;
-  bestFix = null;
+  lastFix = null;
+  sessionStartFlashed = new Set(state.flashedSet); // pour le bilan de balade
   setCapture("none");
   el().querySelector("#hunt-screen")?.classList.add("hunting"); // affiche les ondes
   el().querySelector<HTMLButtonElement>("#btn-hunt")!.textContent = "Terminer la chasse";
@@ -198,7 +200,7 @@ function requestWakeLock(): void {
     .catch(() => {});
 }
 
-/* ---------- Flux capture (< 20 m) ---------- */
+/* ---------- Flux capture (< 30 m) ---------- */
 
 function setCapture(mode: "none" | "camera" | "refresh"): void {
   captureState = mode;
@@ -206,6 +208,7 @@ function setCapture(mode: "none" | "camera" | "refresh"): void {
   if (!btn) return;
   btn.hidden = mode === "none";
   btn.disabled = false;
+  btn.classList.remove("spinning"); // toujours réinitialiser : la cible réapparaît statique
   btn.innerHTML = mode === "refresh" ? REFRESH_SVG : CAMERA_SVG;
   btn.setAttribute("aria-label", mode === "refresh" ? "Actualiser mes flashs" : "Ouvrir FlashInvaders");
 }
@@ -213,7 +216,7 @@ function setCapture(mode: "none" | "camera" | "refresh"): void {
 async function onCapture(): Promise<void> {
   if (captureState === "camera") {
     pendingReturn = true;
-    // Meilleur essai : schéma d'URL de l'app officielle (sans effet si non installée)
+    // Ouvre l'app officielle (deep link validé sur iPhone)
     location.href = "flashinvaders://";
     return;
   }
@@ -221,12 +224,36 @@ async function onCapture(): Promise<void> {
     // même action que « Actualiser mes flashs » du Tableau : recharge la galerie
     const btn = el().querySelector<HTMLButtonElement>("#btn-capture");
     if (btn) { btn.disabled = true; btn.classList.add("spinning"); }
+    const before = new Set(state.flashedSet);
     try {
       if (state.settings.uid) setGallery(await fetchGallery(state.settings.uid));
     } catch { /* le cache local reste bon */ }
+    // Toast : quels invaders viennent d'être flashés ?
+    const fresh = [...state.flashedSet].filter(id => !before.has(id));
+    showToast(
+      fresh.length === 0 ? "Aucun nouveau flash"
+      : fresh.length === 1 ? `Invader ${fresh[0]} flashé ! 👾`
+      : `${fresh.length} invaders flashés ! 👾`
+    );
     setCapture("none");
-    if (bestFix) update(bestFix.pos); // recompte : l'invader flashé disparaît des « à trouver »
+    if (lastFix) update(lastFix.pos); // recompte : l'invader flashé disparaît des « à trouver »
   }
+}
+
+/** Message éphémère au-dessus des boutons de chasse. */
+function showToast(msg: string): void {
+  const screen = el().querySelector<HTMLElement>("#hunt-screen");
+  if (!screen) return;
+  screen.querySelector(".hunt-toast")?.remove();
+  const toast = document.createElement("div");
+  toast.className = "hunt-toast";
+  toast.textContent = msg;
+  screen.appendChild(toast);
+  requestAnimationFrame(() => toast.classList.add("show"));
+  setTimeout(() => {
+    toast.classList.remove("show");
+    setTimeout(() => toast.remove(), 350);
+  }, 2500);
 }
 
 /* ---------- Mini-widget (chasse active sur les autres onglets) ---------- */
@@ -275,15 +302,19 @@ function fuzzyDistance(d: number): string {
   return `~${(d / 1000).toFixed(1).replace(".", ",")} km`;
 }
 
-/** Le premier fix iOS est souvent grossier (réseau/wifi) : on garde le plus
-    précis des 12 dernières secondes, le temps que le GPS se cale. */
+/** Suivi live : on prend toujours le fix le plus RÉCENT (pour coller au
+    déplacement, mètre par mètre), en filtrant seulement les pics aberrants
+    (précision qui se dégrade brutalement l'espace d'un instant). */
 function onFix(pos: GeolocationPosition): void {
   if (!running) return;
   const now = Date.now();
-  if (!bestFix || pos.coords.accuracy <= bestFix.pos.coords.accuracy || now - bestFix.at > 12000) {
-    bestFix = { pos, at: now };
-  }
-  update(bestFix.pos);
+  const spike = lastFix
+    && pos.coords.accuracy > lastFix.pos.coords.accuracy * 2
+    && pos.coords.accuracy > 40
+    && now - lastFix.at < 4000;
+  if (spike) return;
+  lastFix = { pos, at: now };
+  update(pos);
 }
 
 function update(pos: GeolocationPosition): void {
@@ -327,9 +358,9 @@ function update(pos: GeolocationPosition): void {
   paint(currentHeat, { toFind, total, indoor });
   updateWidget(currentHeat, toFind, showDist ? distText : "");
 
-  // Flux capture : un invader à portée de flash (hystérésis 25 m / 30 m)
-  if (Number.isFinite(nearest) && nearest < 25 && captureState === "none") setCapture("camera");
-  else if ((!Number.isFinite(nearest) || nearest > 30) && captureState === "camera") setCapture("none");
+  // Flux capture : un invader à portée de flash (hystérésis 30 m / 35 m)
+  if (Number.isFinite(nearest) && nearest < 30 && captureState === "none") setCapture("camera");
+  else if ((!Number.isFinite(nearest) || nearest > 35) && captureState === "camera") setCapture("none");
 
   const acc = Math.round(accuracy);
   if (accuracy > 150) setChip(`🛰️ Calage GPS… ±${acc} m`);
@@ -422,6 +453,18 @@ async function walkSummary(): Promise<void> {
     }
   }
 
+  // Invaders flashés pendant CETTE session, comptés par quartier (ville|z1)
+  const freshByZone = new Map<string, number>();
+  const freshIds = [...state.flashedSet].filter(id => !sessionStartFlashed.has(id));
+  if (freshIds.length) {
+    const fresh = new Set(freshIds);
+    for (const inv of ds.items) {
+      if (!fresh.has(inv.id) || !inv.z1) continue;
+      const key = `${inv.city}|${inv.z1}`;
+      freshByZone.set(key, (freshByZone.get(key) ?? 0) + 1);
+    }
+  }
+
   const lines: string[] = [];
   for (const [code, zones] of visited) {
     const stats = zoneStats(code, "z1");
@@ -429,9 +472,13 @@ async function walkSummary(): Promise<void> {
       const s = stats.get(z);
       if (!s) continue;
       const left = s.active - s.found;
+      const caught = freshByZone.get(`${code}|${z}`) ?? 0;
+      const caughtLine = caught > 0
+        ? `<div class="sub" style="color:#7fe0a0">✅ ${caught} flashé${caught > 1 ? "s" : ""} ici cette balade</div>`
+        : "";
       lines.push(left === 0
-        ? `<div class="row"><div class="grow"><div class="title" style="font-size:15px">✅ ${z}</div><div class="sub">Quartier complété, chapeau !</div></div></div>`
-        : `<div class="row"><div class="grow"><div class="title" style="font-size:15px">👾 ${z}</div><div class="sub">Encore ${left} à trouver${s.indoorLeft ? ` (dont ${s.indoorLeft} en intérieur)` : ""}</div></div></div>`);
+        ? `<div class="row"><div class="grow"><div class="title" style="font-size:15px">✅ ${z}</div><div class="sub">Quartier complété, chapeau !</div>${caughtLine}</div></div>`
+        : `<div class="row"><div class="grow"><div class="title" style="font-size:15px">👾 ${z}</div><div class="sub">Encore ${left} à trouver${s.indoorLeft ? ` (dont ${s.indoorLeft} en intérieur)` : ""}</div>${caughtLine}</div></div>`);
     }
   }
 

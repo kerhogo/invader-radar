@@ -470,13 +470,39 @@ a { color: var(--ice); }
   gap: 10px;
   padding: calc(var(--sat) + 14px) 18px calc(var(--tab-clear) + 2px);
   background: var(--hunt-bg, #0b1d3a);
-  transition: background 1.1s ease;
+  transition: background 0.35s ease; /* colle au déplacement (sensibilité au mètre) */
   overflow: hidden;
   text-align: center;
   color: #fff;
 }
 
 .hunt-top { padding-top: 4px; }
+
+/* toast de capture : éphémère, juste au-dessus des boutons de chasse */
+.hunt-toast {
+  position: absolute;
+  left: 50%;
+  transform: translate(-50%, 8px);
+  bottom: calc(var(--tab-clear) + 120px);
+  z-index: 20;
+  max-width: 88%;
+  padding: 10px 16px;
+  border-radius: 999px;
+  background: rgba(10, 22, 44, 0.92);
+  border: 0.5px solid rgba(255, 255, 255, 0.22);
+  box-shadow: 0 8px 26px rgba(2, 8, 20, 0.5);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  font: 700 14px var(--font);
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0;
+  transition: opacity 0.3s ease, transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+  pointer-events: none;
+}
+.hunt-toast.show { opacity: 1; transform: translate(-50%, 0); }
 
 .radar-zone {
   flex: 1;

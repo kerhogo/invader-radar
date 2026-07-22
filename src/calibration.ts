@@ -27,13 +27,21 @@ export function heat(distance: number, scale: number = DEFAULT_SCALE): number {
   return 1 - (d - D_HOT) / Math.max(1, scale - D_HOT);
 }
 
-/** Couleur de fond plein écran selon la chaleur (bleu nuit → orange → rouge). */
+/**
+ * Couleur de fond plein écran selon la chaleur. Rampe continue et richement
+ * échelonnée (bleu nuit → bleu → cyan → sarcelle → ambre → rouge) : le moindre
+ * incrément de chaleur — donc de distance — décale déjà la teinte, y compris
+ * dans la plage lointaine (chaleur 0–0,5 ≈ 100–200 m). Pas d'effet de palier.
+ */
 export function heatColor(t: number): string {
   const stops: Array<[number, [number, number, number]]> = [
-    [0.0, [11, 29, 58]],    // bleu nuit
-    [0.45, [63, 63, 116]],  // violet froid
-    [0.7, [214, 108, 20]],  // orange
-    [1.0, [214, 32, 32]]    // rouge
+    [0.00, [10, 24, 48]],    // bleu nuit profond
+    [0.18, [18, 52, 104]],   // bleu
+    [0.36, [20, 110, 150]],  // cyan froid
+    [0.52, [20, 150, 140]],  // sarcelle
+    [0.68, [120, 156, 70]],  // vert-olive (transition)
+    [0.82, [224, 132, 28]],  // ambre
+    [1.00, [220, 36, 32]]    // rouge brûlant
   ];
   let lo = stops[0], hi = stops[stops.length - 1];
   for (let i = 0; i < stops.length - 1; i++) {
