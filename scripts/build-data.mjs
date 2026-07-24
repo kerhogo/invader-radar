@@ -16,6 +16,9 @@ import { fileURLToPath } from "node:url";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const CACHE = join(ROOT, ".cache");
+// Sources réseau vendorisées (committées) : dernier-connu-bon, toujours
+// disponible même quand Overpass/opendata sont en panne (504…).
+const DATASRC = join(ROOT, "datasrc");
 const OUT = join(ROOT, "public", "data");
 const OFFLINE = process.argv.includes("--offline");
 
@@ -97,7 +100,7 @@ const COUNTRY_INFO = (() => {
 /* ---------- utilitaires ---------- */
 
 async function fetchCached(name, url, options) {
-  const path = join(CACHE, name);
+  const path = join(DATASRC, name);
   if (OFFLINE) return readFile(path, "utf8");
   try {
     const res = await fetch(url, {
@@ -109,11 +112,12 @@ async function fetchCached(name, url, options) {
     });
     if (!res.ok) throw new Error(`${url} → HTTP ${res.status}`);
     const text = await res.text();
-    await writeFile(path, text);
+    await writeFile(path, text); // rafraîchit la copie committée
     return text;
   } catch (err) {
-    console.warn(`! ${name} : ${err.message} — tentative via cache`);
-    return readFile(path, "utf8"); // échoue si pas de cache : c'est voulu
+    // repli sur la source vendorisée (dernier bon run) — présente même en CI
+    console.warn(`! ${name} : ${err.message} — repli sur datasrc/ (dernier connu)`);
+    return readFile(path, "utf8");
   }
 }
 
@@ -264,6 +268,7 @@ async function loadParisZones() {
 
 async function main() {
   await mkdir(CACHE, { recursive: true });
+  await mkdir(DATASRC, { recursive: true });
   await mkdir(join(OUT, "zones"), { recursive: true });
 
   const items = await loadSiwd();

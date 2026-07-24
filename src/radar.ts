@@ -49,7 +49,8 @@ function spriteSvg(cls = "radar-core"): string {
   return `<svg class="${cls}" viewBox="0 0 11 8" fill="#fff" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg">${rects}</svg>`;
 }
 
-const CAMERA_SVG = `<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h3l2-2.5h6L17 7h3a1.5 1.5 0 0 1 1.5 1.5v9A1.5 1.5 0 0 1 20 19H4a1.5 1.5 0 0 1-1.5-1.5v-9A1.5 1.5 0 0 1 4 7z"/><circle cx="12" cy="12.5" r="3.4"/></svg>`;
+/* Viseur FlashInvaders : quatre équerres d'angle + croix centrale (traits currentColor). */
+const CAMERA_SVG = `<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8V5.5A1.5 1.5 0 0 1 5.5 4H8"/><path d="M16 4h2.5A1.5 1.5 0 0 1 20 5.5V8"/><path d="M20 16v2.5a1.5 1.5 0 0 1-1.5 1.5H16"/><path d="M8 20H5.5A1.5 1.5 0 0 1 4 18.5V16"/><path d="M12 9.5v5M9.5 12h5"/></svg>`;
 const REFRESH_SVG = `<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-2.3 6.3"/><path d="M20 5v6h-6"/></svg>`;
 
 export function show(): void {
@@ -477,7 +478,7 @@ async function walkSummary(): Promise<void> {
         ? `<div class="sub" style="color: #7fe0a0">${caught} flashé${caught > 1 ? "s" : ""} cette balade</div>`
         : "";
       lines.push(left === 0
-        ? `<div class="row"><div class="grow" style="color: #7fe0a0><div class="title" style="font-size:15px">${z}</div>${caughtLine}<div class="sub">Quartier complété, invasion terminée !</div></div></div>`
+        ? `<div class="row"><div class="grow" style="color: #7fe0a0"><div class="title" style="font-size:15px">${z}</div>${caughtLine}<div class="sub">Quartier complété, invasion terminée !</div></div></div>`
         : `<div class="row"><div class="grow"><div class="title" style="font-size:15px">👾 ${z}</div>${caughtLine}<div class="sub">Encore ${left} à trouver${s.indoorLeft ? ` (dont ${s.indoorLeft} en intérieur)` : ""}</div></div></div>`);
     }
   }
