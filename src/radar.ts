@@ -474,11 +474,11 @@ async function walkSummary(): Promise<void> {
       const left = s.active - s.found;
       const caught = freshByZone.get(`${code}|${z}`) ?? 0;
       const caughtLine = caught > 0
-        ? `<div class="sub" style="color:#7fe0a0">✅ ${caught} flashé${caught > 1 ? "s" : ""} ici cette balade</div>`
+        ? `<div class="sub" style="color: #7fe0a0">${caught} flashé${caught > 1 ? "s" : ""} cette balade</div>`
         : "";
       lines.push(left === 0
-        ? `<div class="row"><div class="grow"><div class="title" style="font-size:15px">✅ ${z}</div><div class="sub">Quartier complété, chapeau !</div>${caughtLine}</div></div>`
-        : `<div class="row"><div class="grow"><div class="title" style="font-size:15px">👾 ${z}</div><div class="sub">Encore ${left} à trouver${s.indoorLeft ? ` (dont ${s.indoorLeft} en intérieur)` : ""}</div>${caughtLine}</div></div>`);
+        ? `<div class="row"><div class="grow" style="color: #7fe0a0><div class="title" style="font-size:15px">${z}</div>${caughtLine}<div class="sub">Quartier complété, invasion terminée !</div></div></div>`
+        : `<div class="row"><div class="grow"><div class="title" style="font-size:15px">👾 ${z}</div>${caughtLine}<div class="sub">Encore ${left} à trouver${s.indoorLeft ? ` (dont ${s.indoorLeft} en intérieur)` : ""}</div></div></div>`);
     }
   }
 
