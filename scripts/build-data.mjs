@@ -439,7 +439,7 @@ async function main() {
     console.log(`Changelog : ${fresh.length} événements aujourd'hui`);
   }
 
-  // News Invader Spotter (texte brut, jamais de coordonnées) → onglet Quoi de neuf
+  // News Invader Spotter (texte brut, jamais de coordonnées) → onglet Actualités
   if (spotter?.news?.length) {
     const cutoff = new Date(Date.now() - 45 * 864e5).toISOString().slice(0, 10);
     const seen = new Set(changelog.entries.filter(e => e.type === "spotter_news").map(e => e.date + "|" + e.text));

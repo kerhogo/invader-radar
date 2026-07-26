@@ -12,7 +12,7 @@ sans le savoir ? »*
 - **Mode chasse** — radar chaud/froid inspiré de la recherche d'AirTag : anneau qui se resserre,
   écran qui chauffe, tic-tac type compteur Geiger. Aucune direction, aucun azimut. Rayon réglable
   10 m → 1 km, avec détail « dont X en intérieur ».
-- **Quoi de neuf** — nouveaux invaders (au niveau quartier), réactivations, destructions, détectés
+- **Actualités** — nouveaux invaders (au niveau quartier), réactivations, destructions, détectés
   par la mise à jour quotidienne.
 - **Bilan de balade** — en fin de session : « quartier Convention : il reste 2 à trouver ».
 
