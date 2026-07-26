@@ -19,8 +19,16 @@ let current: ViewName | "" = "";
 let mapModule: { show: () => void; focusCity: (code: string) => void } | null = null;
 let huntModule: { show: () => void; hide: () => void; isRunning: () => boolean } | null = null;
 
+/* Bouton d'en-tête : engrenage partout, flèche de retour sur les Réglages. */
+const headerBtn = document.getElementById("btn-settings") as HTMLButtonElement;
+const GEAR_HTML = headerBtn.innerHTML;
+const BACK_HTML = `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>`;
+let beforeSettings: ViewName = "dashboard";
+
 async function showView(name: ViewName): Promise<void> {
   if (current === name) return;
+  // mémorise d'où l'on vient pour que la flèche des Réglages y revienne
+  if (name === "settings" && current && current !== "settings") beforeSettings = current;
   current = name;
   document.body.dataset.view = name;
 
@@ -29,6 +37,9 @@ async function showView(name: ViewName): Promise<void> {
   const active = document.getElementById(`view-${name}`)!;
   title.textContent = active.dataset.title ?? "Invader Radar";
   topbar.style.display = name === "map" || name === "hunt" ? "none" : "";
+  const onSettings = name === "settings";
+  headerBtn.innerHTML = onSettings ? BACK_HTML : GEAR_HTML;
+  headerBtn.setAttribute("aria-label", onSettings ? "Retour" : "Réglages");
 
   switch (name) {
     case "dashboard": renderDashboard(); break;
@@ -52,7 +63,9 @@ async function showView(name: ViewName): Promise<void> {
 for (const t of tabs) {
   t.addEventListener("click", () => showView(t.dataset.view as ViewName));
 }
-document.getElementById("btn-settings")!.addEventListener("click", () => showView("settings"));
+headerBtn.addEventListener("click", () => {
+  showView(current === "settings" ? beforeSettings : "settings");
+});
 
 /* Glisser le doigt le long de la barre bascule la page EN TEMPS RÉEL : dès que
    le doigt survole un autre onglet (touchmove), l'écran change immédiatement,

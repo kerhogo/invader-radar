@@ -42,16 +42,17 @@
 [hidden] { display: none !important; }
 
 html, body { height: 100%; overscroll-behavior: none; }
+html { background: var(--bg); }
 
 body {
   font-family: var(--font);
   color: var(--text);
-  background: var(--bg);
-  background-image:
-    radial-gradient(rgba(124, 199, 255, 0.055) 1px, transparent 1.4px),
-    linear-gradient(180deg, #0c1f3f 0%, #081428 52%, #060d1c 100%);
-  background-size: 26px 26px, 100% 100dvh;
-  background-attachment: fixed;
+  /* Fond uni : le dégradé vertical faisait exactement 100dvh et se répétait
+     au-delà, créant des strates bleues au scroll. Seule la trame de points
+     (périodique, donc continue) est conservée. */
+  background-color: var(--bg);
+  background-image: radial-gradient(rgba(124, 199, 255, 0.055) 1px, transparent 1.4px);
+  background-size: 26px 26px;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   user-select: none;
