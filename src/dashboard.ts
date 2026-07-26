@@ -76,7 +76,10 @@ function cityRow(c: CityStats, showFlag: boolean): string {
   const denom = c.official ?? c.active;
   const left = Math.max(0, c.active - c.found);
   const pct = denom > 0 ? Math.min(100, Math.round((c.foundTotal / denom) * 100)) : 0;
-  const done = denom > 0 && c.foundTotal >= denom;
+  // Part non trouvable (détruits, trop dégradés) : segment grisé collé à droite.
+  // La jauge bleue peut ainsi le rejoindre quand tout le trouvable est flashé.
+  const gone = denom > 0 ? Math.max(0, Math.min(100 - pct, Math.round(((denom - c.active) / denom) * 100))) : 0;
+  const done = c.active > 0 && left === 0;
   const subs: string[] = [`${fmt(left)} restants`];
   if (c.unlocated > 0) subs.push(`${fmt(c.unlocated)} non localisés`);
   const flag = showFlag && info?.flag ? `${info.flag} ` : "";
@@ -86,7 +89,7 @@ function cityRow(c: CityStats, showFlag: boolean): string {
       <div class="grow">
         <div class="title">${flag}${escapeHtml(c.name)}</div>
         <div class="sub">${subs.join(" · ")}</div>
-        <div class="progress ${done ? "done" : ""}"><i style="width:${pct}%"></i></div>
+        <div class="progress ${done ? "done" : ""}"><i style="width:${pct}%"></i>${gone > 0 ? `<span class="gone" style="width:${gone}%"></span>` : ""}</div>
       </div>
       <div class="val">${fmt(c.foundTotal)}<span style="color:var(--text-2)">/${fmt(denom)}</span></div>
     </div>

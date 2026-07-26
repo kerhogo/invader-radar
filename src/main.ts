@@ -165,8 +165,12 @@ async function boot(): Promise<void> {
 }
 
 on("gallery", () => { if (current === "dashboard") renderDashboard(); });
-on("dataset", () => { if (current === "dashboard") renderDashboard(); });
 on("settings", () => { if (current === "dashboard") renderDashboard(); });
+on("dataset", () => {
+  if (current === "dashboard") renderDashboard();
+  // les actualités nomment les villes depuis le dataset : re-rendre dès qu'il arrive
+  if (current === "news") void renderNews();
+});
 
 boot();
 

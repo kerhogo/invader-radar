@@ -435,7 +435,7 @@ async function main() {
       }
     }
     // anti-spoiler : les entrées du changelog ne portent jamais de coordonnées
-    changelog.entries = [...fresh, ...changelog.entries.filter(e => e.date !== today)].slice(0, 400);
+    changelog.entries = [...fresh, ...changelog.entries.filter(e => e.date !== today)];
     console.log(`Changelog : ${fresh.length} événements aujourd'hui`);
   }
 
@@ -446,10 +446,31 @@ async function main() {
     const freshNews = spotter.news
       .filter(n => n.date >= cutoff && !seen.has(n.date + "|" + n.text))
       .map(n => ({ date: n.date, type: "spotter_news", text: n.text }));
-    changelog.entries = [...freshNews, ...changelog.entries]
-      .sort((a, b) => b.date.localeCompare(a.date))
-      .slice(0, 400);
+    changelog.entries = [...freshNews, ...changelog.entries];
     console.log(`News Invader Spotter intégrées : ${freshNews.length}`);
+  }
+
+  // Assemblage final. Deux garde-fous :
+  //  1. une news qui ne fait que redire un changement de statut déjà listé est
+  //     redondante (même événement, deux formulations) → écartée ;
+  //  2. quota réservé aux news, sinon un gros lot de changements de statut
+  //     (resynchronisation) les évince toutes et la source disparaît de l'onglet.
+  {
+    const MAX_TOTAL = 400, MAX_NEWS = 120;
+    const byDateDesc = (a, b) => b.date.localeCompare(a.date);
+    const all = changelog.entries;
+    const changedIds = new Set(all.filter(e => e.type === "status_change" && e.id).map(e => e.id));
+    const news = all
+      .filter(e => e.type === "spotter_news")
+      .filter(e => {
+        const ids = String(e.text ?? "").match(/[A-Z]{2,5}_\d+/g) ?? [];
+        return ids.length === 0 || !ids.every(id => changedIds.has(id));
+      })
+      .sort(byDateDesc)
+      .slice(0, MAX_NEWS);
+    const events = all.filter(e => e.type !== "spotter_news").sort(byDateDesc).slice(0, MAX_TOTAL - news.length);
+    changelog.entries = [...news, ...events].sort(byDateDesc);
+    console.log(`Changelog final : ${events.length} événements + ${news.length} news`);
   }
 
   // Sorties

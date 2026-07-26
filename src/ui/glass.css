@@ -245,11 +245,21 @@ body {
 .row.tappable:active { opacity: 0.6; }
 
 .progress {
+  position: relative;
   height: 6px;
   border-radius: 3px;
   background: rgba(148, 180, 232, 0.14);
   overflow: hidden;
   margin-top: 7px;
+}
+/* part non trouvable (détruits) : segment sombre collé à droite */
+.progress .gone {
+  position: absolute;
+  top: 0;
+  right: 0;
+  height: 100%;
+  background: rgba(120, 150, 195, 0.3);
+  border-radius: 0 3px 3px 0;
 }
 .progress i {
   display: block;

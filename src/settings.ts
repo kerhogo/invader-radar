@@ -57,6 +57,10 @@ export function renderSettings(): void {
         quartiers <a href="https://opendata.paris.fr" target="_blank" rel="noopener">Open Data Paris</a>.
         Progression : API FlashInvaders. Projet indépendant, non affilié à Invader ni à FlashInvaders.
       </p>
+      <p class="hint center" style="margin-top:14px">
+        © ${new Date().getFullYear()} <a href="https://github.com/kerhogo" target="_blank" rel="noopener">kerhogo</a>
+        · <a href="https://github.com/kerhogo/invader-radar" target="_blank" rel="noopener">code source</a>
+      </p>
     </div>
   `;
 
