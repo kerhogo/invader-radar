@@ -2,6 +2,7 @@ import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { state, on } from "./state";
 import { cityStats, zoneStats, loadZones } from "./data";
+import { haversine } from "./geo";
 import { fmt, escapeHtml } from "./dashboard";
 
 const BASE_STYLE = "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json";
@@ -288,11 +289,35 @@ function centroids(fc: GeoJSON.FeatureCollection): GeoJSON.FeatureCollection {
 
 async function addZones(): Promise<void> {
   if (!map || !state.dataset) return;
+  // Chargement à la demande : les 45 villes zonées pèsent 8 Mo de GeoJSON.
+  // On ne récupère que celles visibles à l'écran, au fil des déplacements.
+  await loadVisibleZones();
+  map.on("moveend", () => void loadVisibleZones());
+}
 
-  // toutes les villes en parallèle : la carte est complète en une volée réseau
-  await Promise.all(Object.entries(state.dataset.cities).map(([code, info]) =>
-    info.zones ? addCityZones(code) : Promise.resolve()
-  ));
+const loadedZones = new Set<string>();
+const loadingZones = new Set<string>();
+
+async function loadVisibleZones(): Promise<void> {
+  if (!map || !state.dataset) return;
+  if (map.getZoom() < Z_MID[0]) return; // vue monde : seules les bulles servent
+  const bounds = map.getBounds();
+  const c = map.getCenter();
+  const pending: Array<Promise<void>> = [];
+  for (const [code, info] of Object.entries(state.dataset.cities)) {
+    if (!info.zones || loadedZones.has(code) || loadingZones.has(code)) continue;
+    // dans le cadre, ou assez près du centre (cas d'un zoom sur un quartier,
+    // où le point « centre-ville » peut être hors champ)
+    const near = bounds.contains([info.lng, info.lat])
+      || haversine(c.lat, c.lng, info.lat, info.lng) < 25000;
+    if (!near) continue;
+    loadingZones.add(code);
+    pending.push(addCityZones(code).then(() => {
+      loadedZones.add(code);
+      loadingZones.delete(code);
+    }).catch(() => { loadingZones.delete(code); }));
+  }
+  await Promise.all(pending);
 }
 
 async function addCityZones(code: string): Promise<void> {

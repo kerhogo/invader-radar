@@ -576,6 +576,16 @@ a { color: var(--ice); }
   margin-bottom: 2px;
 }
 
+/* note d'angle mort : ce que le radar ne peut pas détecter */
+.blind-note {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: rgba(255, 214, 130, 0.85);
+  line-height: 1.35;
+  margin: -2px 0 2px;
+  max-width: 440px;
+}
+
 .hunt-counts {
   display: flex;
   width: 100%;

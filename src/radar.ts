@@ -1,5 +1,6 @@
+import type { Status } from "./types";
 import { state, saveSettings, setGallery } from "./state";
-import { isActive, isFlashed, loadZones, zoneStats } from "./data";
+import { isActive, isFlashed, loadZones, zoneStats, STATUS_LABELS } from "./data";
 import { fetchGallery } from "./api";
 import { haversine, pointInGeometry } from "./geo";
 import { heat, heatColor, ringSize, tickInterval } from "./calibration";
@@ -83,6 +84,7 @@ function render(): void {
       </div>
 
       <p class="nearest" id="nearest-line"></p>
+      <p class="blind-note" id="blind-line" hidden></p>
 
       <div class="hunt-counts">
         <div class="stat"><b id="c-tofind">–</b><span>à trouver</span></div>
@@ -285,14 +287,46 @@ function updateWidget(t: number, toFind: number | null, distanceText: string): v
 
 /* ---------- Cœur du radar ---------- */
 
+/** Toutes les mosaïques localisées, y compris celles que les filtres écartent :
+    `active: false` sert au contrôle d'angle mort (voir blindSpot). */
 function targets() {
   const items = state.dataset?.items ?? [];
-  const out: Array<{ lat: number; lng: number; flashed: boolean; indoor: boolean }> = [];
+  const out: Array<{ lat: number; lng: number; flashed: boolean; indoor: boolean; active: boolean; status: Status }> = [];
   for (const inv of items) {
-    if (inv.lat === undefined || inv.lng === undefined || !isActive(inv)) continue;
-    out.push({ lat: inv.lat, lng: inv.lng, flashed: isFlashed(inv), indoor: !!inv.indoor });
+    if (inv.lat === undefined || inv.lng === undefined) continue;
+    out.push({
+      lat: inv.lat, lng: inv.lng,
+      flashed: isFlashed(inv), indoor: !!inv.indoor,
+      active: isActive(inv), status: inv.status
+    });
   }
   return out;
+}
+
+/* Nombre de mosaïques sans coordonnées (donc indétectables) dans la ville la
+   plus proche — mémoïsé, la liste ne change pas pendant une chasse. */
+let unlocatedMemo: { key: string; label: string } | null = null;
+
+function unlocatedNearby(lat: number, lng: number): string {
+  const ds = state.dataset;
+  if (!ds) return "";
+  let best: { code: string; name: string; d: number } | null = null;
+  for (const [code, info] of Object.entries(ds.cities)) {
+    const d = haversine(lat, lng, info.lat, info.lng);
+    if (d < 20000 && (!best || d < best.d)) best = { code, name: info.name, d };
+  }
+  if (!best) return "";
+  const key = `${best.code}|${state.flashedSet.size}|${state.settings.includeHidden}${state.settings.includeDamaged}${state.settings.includeUnknown}`;
+  if (unlocatedMemo?.key === key) return unlocatedMemo.label;
+  let n = 0;
+  for (const inv of ds.items) {
+    if (inv.city === best.code && inv.lat === undefined && isActive(inv) && !isFlashed(inv)) n++;
+  }
+  const label = n > 0
+    ? `${fmt(n)} mosaïque${n > 1 ? "s" : ""} sans coordonnées à ${best.name} — hors radar`
+    : "";
+  unlocatedMemo = { key, label };
+  return label;
 }
 
 /** Distance arrondie pour l'affichage (pas de fausse précision GPS). */
@@ -329,9 +363,16 @@ function update(pos: GeolocationPosition): void {
   const radius = state.settings.radius;
   let nearest = Infinity;
   let total = 0, toFind = 0, indoor = 0;
+  // angle mort : la plus proche mosaïque écartée par les filtres (détruite,
+  // trop dégradée, cachée) — elle peut être physiquement là sous tes yeux
+  let blind: { d: number; status: Status } | null = null;
 
   for (const t of targets()) {
     const d = haversine(lat, lng, t.lat, t.lng);
+    if (!t.active) {
+      if (!t.flashed && (!blind || d < blind.d)) blind = { d, status: t.status };
+      continue;
+    }
     if (d <= radius) {
       total++;
       if (!t.flashed) {
@@ -354,6 +395,21 @@ function update(pos: GeolocationPosition): void {
     nearestLine.textContent = !Number.isFinite(nearest) || nearest >= 5000
       ? "Aucun invader à trouver à moins de 5 km"
       : showDist ? `Le plus proche à trouver : ${distText}` : "";
+  }
+
+  // Contrôle d'angle mort : le radar ne compte que les mosaïques localisées ET
+  // encore flashables. Si une mosaïque écartée est plus près que la cible, ou
+  // si la ville compte des mosaïques sans coordonnées, on le dit franchement.
+  const blindLine = el().querySelector<HTMLElement>("#blind-line");
+  if (blindLine) {
+    let note = "";
+    if (blind && blind.d < 120 && blind.d < nearest) {
+      note = `Angle mort : 1 invader ${STATUS_LABELS[blind.status]} à ${fuzzyDistance(blind.d)} — non compté`;
+    } else {
+      note = unlocatedNearby(lat, lng);
+    }
+    blindLine.textContent = note;
+    blindLine.hidden = note === "";
   }
 
   paint(currentHeat, { toFind, total, indoor });

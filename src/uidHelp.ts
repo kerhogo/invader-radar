@@ -19,7 +19,7 @@ const IOS_STEPS: Array<[string, string[]]> = [
     "Ouvre l'app officielle <b>FlashInvaders</b>.",
     "Va sur ton <b>profil</b> ou rafraîchis ta page : l'app envoie ton identifiant au serveur.",
     "Retourne dans Proxyman et cherche une requête vers <b>api.space-invaders.com</b>.",
-    "Ouvre-la, onglet <b>Request</b> → section <b>Query</b> (ou l'URL brute) : repère le paramètre <b>uid</b> suivi d'une longue suite (ex. <code>03F305B5-…</code>).",
+    "Ouvre-la, onglet <b>Request</b> → section <b>Query</b> (ou l'URL brute) : repère le paramètre <b>uid</b> suivi d'une longue suite (ex. <code>A1B2C3D4-…</code>).",
     "Copie cette valeur complète — c'est ta clé, à coller dans le champ uid de l'app."
   ]],
   ["3 · Nettoyage sécurité", [
@@ -41,7 +41,7 @@ const ANDROID_STEPS: Array<[string, string[]]> = [
     "Purge les anciens logs : <code>adb logcat -c</code>.",
     "Lance l'écoute — Mac/Linux : <code>adb logcat | grep -i \"uid=\"</code> · Windows : <code>adb logcat | Select-String \"uid=\"</code>.",
     "Ouvre <b>FlashInvaders</b> et rafraîchis ton profil.",
-    "Si l'app journalise ses requêtes, une ligne <code>uid=03F305B5-…</code> défile : copie la valeur."
+    "Si l'app journalise ses requêtes, une ligne <code>uid=A1B2C3D4-…</code> défile : copie la valeur."
   ]],
   ["3 · Remise en état", [
     "Réglages → Options pour les développeurs → <b>désactive le Débogage USB</b>.",

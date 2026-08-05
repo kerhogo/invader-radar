@@ -22,7 +22,27 @@ const DATASRC = join(ROOT, "datasrc");
 const OUT = join(ROOT, "public", "data");
 const OFFLINE = process.argv.includes("--offline");
 
-const SIWD_URL = "https://raw.githubusercontent.com/goguelnikov/SpaceInvaders/master/world_space_invaders_V05.json";
+/* Le dépôt SIWD publie des versions numérotées (V05, V06…). On détecte la plus
+   récente à chaque run : rester figé sur une version périmée prive le radar des
+   coordonnées des invaders récents (cas PA_1531+ resté aveugle avec la V05). */
+const SIWD_MIN_VERSION = 6;
+const siwdUrlFor = v => `https://raw.githubusercontent.com/goguelnikov/SpaceInvaders/master/world_space_invaders_V${String(v).padStart(2, "0")}.json`;
+
+async function latestSiwdUrl() {
+  let best = SIWD_MIN_VERSION;
+  for (let v = SIWD_MIN_VERSION + 1; v <= SIWD_MIN_VERSION + 10; v++) {
+    try {
+      const res = await fetch(siwdUrlFor(v), {
+        method: "HEAD",
+        headers: { "User-Agent": "InvaderRadar-DataPipeline/0.1 (projet perso non commercial)" }
+      });
+      if (!res.ok) break;
+      best = v;
+    } catch { break; } // réseau indisponible : on garde la dernière version connue
+  }
+  console.log(`SIWD : version V${String(best).padStart(2, "0")}`);
+  return siwdUrlFor(best);
+}
 const OVERPASS_URL = "https://overpass-api.de/api/interpreter";
 const QUARTIERS_URL = "https://opendata.paris.fr/api/explore/v2.1/catalog/datasets/quartier_paris/exports/geojson";
 const ARRONDISSEMENTS_URL = "https://opendata.paris.fr/api/explore/v2.1/catalog/datasets/arrondissements/exports/geojson";
@@ -181,7 +201,8 @@ function roundCoords(geom, digits = 5) {
 /* ---------- 1. SIWD ---------- */
 
 async function loadSiwd() {
-  const raw = JSON.parse(stripBom(await fetchCached("siwd.json", SIWD_URL)));
+  const url = OFFLINE ? siwdUrlFor(SIWD_MIN_VERSION) : await latestSiwdUrl();
+  const raw = JSON.parse(stripBom(await fetchCached("siwd.json", url)));
   const items = new Map();
   for (const e of raw) {
     const id = String(e.id ?? "").trim().replace(/\s+/g, "");
@@ -394,8 +415,15 @@ async function main() {
     if (inv.lat !== undefined) { cities[inv.city].lats.push(inv.lat); cities[inv.city].lngs.push(inv.lng); }
   }
   const citiesOut = {};
+  const knowsOfficial = Object.keys(ref).length > 0;
   for (const [code, c] of Object.entries(cities)) {
     if (c.count < 2 && c.lats.length === 0) continue; // scories improbables
+    // « villes officielles uniquement » : un code absent du référentiel Invader
+    // Spotter et de la table curée est une coquille du dataset (ex. LND vs LDN)
+    if (knowsOfficial && !ref[code] && !CITY_NAMES[code]) {
+      console.warn(`! ville ignorée (hors référentiel officiel) : ${code} — ${c.count} invader(s)`);
+      continue;
+    }
     const avg = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0;
     const geo = COUNTRY_INFO[code] ?? { country: "Ailleurs", flag: "🌍", continent: "Ailleurs" };
     citiesOut[code] = {

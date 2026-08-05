@@ -2,18 +2,15 @@
  * Calibration du radar « chaud/froid » — toutes les constantes de sensibilité
  * sont ici pour pouvoir être révisées facilement après tests terrain.
  *
- * Choix validés avec Hugo : froid jusqu'à ~100 m, montée progressive ensuite,
- * très sensible de ~30 m à ~5 m (limite de précision GPS).
+ * Courbe retenue : linéaire sur la distance d'échelle réglable (200 m par
+ * défaut). Chaque mètre gagné produit le même écart visible, sans palier —
+ * c'est ce qui rend le rapprochement lisible aussi bien à 150 m qu'à 10 m.
  */
 
-/** Distance (m) au-delà de laquelle le radar est totalement froid. */
-export const D_COLD = 100;
-/** Distance (m) de chaleur maximale — le radar reste réactif jusqu'à ~3 m. */
+/** Distance (m) de chaleur maximale — inutile d'aller plus fin que le GPS. */
 export const D_HOT = 3;
-/** Pivot de la courbe : à cette distance on est à ~50 % de chaleur. */
-export const D_MID = 30;
 
-/** Distance d'échelle par défaut du radar (réglable par l'utilisateur). */
+/** Distance d'échelle par défaut du radar (réglable dans les réglages). */
 export const DEFAULT_SCALE = 200;
 
 /**
