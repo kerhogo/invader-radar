@@ -2,7 +2,7 @@
   "version": 0.6,
   "generator": "Overpass API 0.7.62.11 87bfad18",
   "osm3s": {
-    "timestamp_osm_base": "2026-09-03T09:04:33Z",
+    "timestamp_osm_base": "2026-09-04T08:59:06Z",
     "copyright": "The data included in this document is from www.openstreetmap.org. The data is made available under ODbL."
   },
   "elements": [
@@ -2848,8 +2848,8 @@
 {
   "type": "node",
   "id": 8601675017,
-  "lat": 48.8869701,
-  "lon": 2.3137036,
+  "lat": 48.8869868,
+  "lon": 2.3137633,
   "tags": {
     "artist:website": "https://space-invaders.com/",
     "artist:wikidata": "Q1671666",
@@ -2857,9 +2857,11 @@
     "artist_name": "Invader",
     "artwork_subject": "street_art",
     "artwork_type": "mosaic",
-    "description": "vase à droite du lcl",
+    "description": "Vase à droite du lcl.",
+    "panoramax": "b3134d67-faa7-46f4-ad4f-92d68b82c5d1",
     "ref": "PA_1406",
     "start_date": "2019",
+    "support": "wall",
     "tourism": "artwork"
   }
 },
@@ -11996,6 +11998,23 @@
     "artwork_type": "mosaic",
     "panoramax": "1dbdc1cc-0ea5-463b-93f2-334509d8a72d",
     "ref": "PA_755",
+    "support": "wall",
+    "tourism": "artwork"
+  }
+},
+{
+  "type": "node",
+  "id": 14144988477,
+  "lat": 48.8860225,
+  "lon": 2.3172887,
+  "tags": {
+    "artist:wikidata": "Q1671666",
+    "artist_name": "Invader",
+    "artwork_subject": "street_art",
+    "artwork_type": "mosaic",
+    "panoramax": "06f1004a-fc24-41f3-84af-b27040c5ff06",
+    "ref": "PA_891",
+    "start_date": "2011",
     "support": "wall",
     "tourism": "artwork"
   }
