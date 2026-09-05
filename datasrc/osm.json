@@ -2,7 +2,7 @@
   "version": 0.6,
   "generator": "Overpass API 0.7.62.11 87bfad18",
   "osm3s": {
-    "timestamp_osm_base": "2026-09-04T08:59:06Z",
+    "timestamp_osm_base": "2026-09-05T08:28:35Z",
     "copyright": "The data included in this document is from www.openstreetmap.org. The data is made available under ODbL."
   },
   "elements": [
@@ -43,6 +43,23 @@
     "material": "ceramic",
     "ref": "TLS_07",
     "start_date": "2016",
+    "tourism": "artwork",
+    "website": "https://space-invaders.com/"
+  }
+},
+{
+  "type": "node",
+  "id": 595475862,
+  "lat": 48.8238559,
+  "lon": 2.3627072,
+  "tags": {
+    "artist:wikidata": "Q1671666",
+    "artist:wikipedia": "fr:Invader (artiste)",
+    "artist_name": "Invader",
+    "artwork_subject": "street_art",
+    "artwork_type": "mosaic",
+    "description": "au coin, rouge petit hauteur",
+    "ref": "PA_667",
     "tourism": "artwork",
     "website": "https://space-invaders.com/"
   }
@@ -1544,8 +1561,8 @@
 {
   "type": "node",
   "id": 7707020899,
-  "lat": 48.8682638,
-  "lon": 2.3436637,
+  "lat": 48.8682582,
+  "lon": 2.3436760,
   "tags": {
     "artist:wikidata": "Q1671666",
     "artist:wikipedia": "fr:Invader (artiste)",
@@ -2374,8 +2391,8 @@
 {
   "type": "node",
   "id": 7726537685,
-  "lat": 48.8586045,
-  "lon": 2.3519322,
+  "lat": 48.8585953,
+  "lon": 2.3519394,
   "tags": {
     "artist:wikidata": "Q1671666",
     "artist:wikipedia": "fr:Invader (artiste)",
@@ -3406,23 +3423,6 @@
     "artwork_type": "mosaic",
     "name": "Space Invader PA 1352",
     "ref": "PA_1352",
-    "tourism": "artwork",
-    "website": "https://space-invaders.com/"
-  }
-},
-{
-  "type": "node",
-  "id": 8617575418,
-  "lat": 48.8238769,
-  "lon": 2.3627374,
-  "tags": {
-    "artist:wikidata": "Q1671666",
-    "artist:wikipedia": "fr:Invader (artiste)",
-    "artist_name": "Invader",
-    "artwork_subject": "street_art",
-    "artwork_type": "mosaic",
-    "description": "au coin, rouge petit hauteur",
-    "ref": "PA_667",
     "tourism": "artwork",
     "website": "https://space-invaders.com/"
   }
@@ -4601,22 +4601,6 @@
 },
 {
   "type": "node",
-  "id": 8647807718,
-  "lat": 48.8682545,
-  "lon": 2.3436288,
-  "tags": {
-    "artist:wikidata": "Q1671666",
-    "artist:wikipedia": "fr:Invader (artiste)",
-    "artist_name": "Invader",
-    "artwork_subject": "street_art",
-    "artwork_type": "mosaic",
-    "ref": "PA_976",
-    "tourism": "artwork",
-    "website": "https://space-invaders.com/"
-  }
-},
-{
-  "type": "node",
   "id": 8647807817,
   "lat": 48.8668761,
   "lon": 2.3514920,
@@ -4646,22 +4630,6 @@
     "description": "sac d'or",
     "panoramax": "dc625588-55bb-49d0-8236-3d4ee0415537",
     "ref": "PA_1347",
-    "tourism": "artwork",
-    "website": "https://space-invaders.com/"
-  }
-},
-{
-  "type": "node",
-  "id": 8647808018,
-  "lat": 48.8687968,
-  "lon": 2.3401723,
-  "tags": {
-    "artist:wikidata": "Q1671666",
-    "artist:wikipedia": "fr:Invader (artiste)",
-    "artist_name": "Invader",
-    "artwork_subject": "street_art",
-    "artwork_type": "mosaic",
-    "ref": "PA_1177",
     "tourism": "artwork",
     "website": "https://space-invaders.com/"
   }
@@ -5291,22 +5259,6 @@
 },
 {
   "type": "node",
-  "id": 8676094817,
-  "lat": 48.8585917,
-  "lon": 2.3519385,
-  "tags": {
-    "artist:wikidata": "Q1671666",
-    "artist:wikipedia": "fr:Invader (artiste)",
-    "artist_name": "Invader",
-    "artwork_subject": "street_art",
-    "artwork_type": "mosaic",
-    "ref": "PA_815",
-    "tourism": "artwork",
-    "website": "https://space-invaders.com/"
-  }
-},
-{
-  "type": "node",
   "id": 8676094818,
   "lat": 48.8594716,
   "lon": 2.3527560,
@@ -5472,22 +5424,6 @@
     "artwork_type": "mosaic",
     "description": "petit schtroumpf en bas d'un mur",
     "ref": "PA_508",
-    "tourism": "artwork",
-    "website": "https://space-invaders.com/"
-  }
-},
-{
-  "type": "node",
-  "id": 8687611018,
-  "lat": 48.8238465,
-  "lon": 2.3627411,
-  "tags": {
-    "artist:wikidata": "Q1671666",
-    "artist:wikipedia": "fr:Invader (artiste)",
-    "artist_name": "Invader",
-    "artwork_subject": "street_art",
-    "artwork_type": "mosaic",
-    "ref": "PA_667",
     "tourism": "artwork",
     "website": "https://space-invaders.com/"
   }
