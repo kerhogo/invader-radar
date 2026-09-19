@@ -2,7 +2,7 @@
   "version": 0.6,
   "generator": "Overpass API 0.7.62.11 87bfad18",
   "osm3s": {
-    "timestamp_osm_base": "2026-09-17T09:34:35Z",
+    "timestamp_osm_base": "2026-09-19T08:56:31Z",
     "copyright": "The data included in this document is from www.openstreetmap.org. The data is made available under ODbL."
   },
   "elements": [
@@ -4026,6 +4026,23 @@
     "artwork_type": "mosaic",
     "razed:tourism": "artwork",
     "ref": "PA_167"
+  }
+},
+{
+  "type": "node",
+  "id": 8644416218,
+  "lat": 48.8464745,
+  "lon": 2.3419235,
+  "tags": {
+    "artist:wikidata": "Q1671666",
+    "artist:wikipedia": "fr:Invader (artiste)",
+    "artist_name": "Invader",
+    "artwork_subject": "street_art",
+    "artwork_type": "mosaic",
+    "description": "Bleu orange marche pas",
+    "ref": "PA_321",
+    "tourism": "artwork",
+    "website": "https://space-invaders.com/"
   }
 },
 {
