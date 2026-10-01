@@ -2,7 +2,7 @@
   "version": 0.6,
   "generator": "Overpass API 0.7.62.11 87bfad18",
   "osm3s": {
-    "timestamp_osm_base": "2026-09-30T10:38:21Z",
+    "timestamp_osm_base": "2026-10-01T11:05:06Z",
     "copyright": "The data included in this document is from www.openstreetmap.org. The data is made available under ODbL."
   },
   "elements": [
@@ -3032,6 +3032,33 @@
     "ref": "PA_994",
     "tourism": "artwork",
     "website": "https://space-invaders.com/"
+  }
+},
+{
+  "type": "node",
+  "id": 8608138117,
+  "lat": 48.8305631,
+  "lon": 2.4927935,
+  "tags": {
+    "artist_name": "Invader",
+    "artwork_type": "mosaic",
+    "description": "Oeuvre PA_1405 d'Invader, invader sur fond orange et bleu. Détruite ou emmurée lors de l'installation du mur anti-bruit érigé en 2022.",
+    "name": "PA_1405",
+    "source": "https://www.invader-spotter.art/photos/PA/PA_1405-juillet2019.jpg",
+    "was:tourism": "artwork"
+  }
+},
+{
+  "type": "node",
+  "id": 8608138218,
+  "lat": 48.7981588,
+  "lon": 2.1350188,
+  "tags": {
+    "artist_name": "Invader",
+    "artwork_type": "mosaic",
+    "description": "Oeuvre VRS_14 d'Invader, représentant un invader bleu couronné brandissant une bannière \"XIV\".",
+    "name": "VRS_14",
+    "tourism": "artwork"
   }
 },
 {
@@ -11970,6 +11997,19 @@
     "ref": "PA_891",
     "start_date": "2011",
     "support": "wall",
+    "tourism": "artwork"
+  }
+},
+{
+  "type": "node",
+  "id": 14235846323,
+  "lat": 48.8098345,
+  "lon": 2.1341671,
+  "tags": {
+    "artist_name": "Invader",
+    "artwork_type": "mosaic",
+    "description": "Oeuvre VRS_41 d'Invader représentant plusieurs affiches pixélisées, la principale étant un portrait de Louis XIV.",
+    "name": "VRS_41",
     "tourism": "artwork"
   }
 }
