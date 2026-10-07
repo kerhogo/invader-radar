@@ -1,21 +1,21 @@
 {
-  "generated": "2026-10-06T11:26:54.365Z",
+  "generated": "2026-10-07T11:14:49.901Z",
   "sources": {
     "siwd": {
       "note": "Space Invaders World Database V05 (déc. 2024)",
-      "count": 4437
+      "count": 4443
     },
     "osm": {
-      "date": "2026-10-06",
+      "date": "2026-10-07",
       "note": "0 nouveaux, 0 coords complétées"
     },
     "spotter": {
-      "date": "2026-10-06",
-      "count": 4436
+      "date": "2026-10-07",
+      "count": 4442
     },
     "stats": {
-      "total": 4437,
-      "actifs": 2936,
+      "total": 4443,
+      "actifs": 2942,
       "detruits": 1501,
       "localises": 4335,
       "interieur": 23,
