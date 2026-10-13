@@ -2,7 +2,7 @@
   "version": 0.6,
   "generator": "Overpass API 0.7.62.11 87bfad18",
   "osm3s": {
-    "timestamp_osm_base": "2026-10-06T11:24:56Z",
+    "timestamp_osm_base": "2026-10-13T11:57:40Z",
     "copyright": "The data included in this document is from www.openstreetmap.org. The data is made available under ODbL."
   },
   "elements": [
@@ -11294,20 +11294,6 @@
 },
 {
   "type": "node",
-  "id": 12820847454,
-  "lat": 48.8910022,
-  "lon": 2.3840351,
-  "tags": {
-    "artist:wikidata": "Q1671666",
-    "artist_name": "Invader",
-    "artwork_subject": "street_art",
-    "artwork_type": "mosaic",
-    "panoramax": "9adb1780-98e7-4e96-9718-52bf53f7fe7c",
-    "tourism": "artwork"
-  }
-},
-{
-  "type": "node",
   "id": 12844094625,
   "lat": 48.8565454,
   "lon": 2.3568496,
@@ -11930,8 +11916,8 @@
     "artwork_type": "mosaic",
     "check_date": "2026-07-09",
     "condition": "good",
-    "name": "BAB_42",
     "panoramax": "e24f0ecd-bad7-4410-a11c-04e997cf411c",
+    "ref": "BAB_42",
     "start_date": "2024-11",
     "tourism": "artwork",
     "website": "https://www.space-invaders.com/world/bab/"
