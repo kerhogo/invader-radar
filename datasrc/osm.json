@@ -2,7 +2,7 @@
   "version": 0.6,
   "generator": "Overpass API 0.7.62.11 87bfad18",
   "osm3s": {
-    "timestamp_osm_base": "2026-10-22T09:34:00Z",
+    "timestamp_osm_base": "2026-10-23T09:30:36Z",
     "copyright": "The data included in this document is from www.openstreetmap.org. The data is made available under ODbL."
   },
   "elements": [
@@ -1329,8 +1329,8 @@
 {
   "type": "node",
   "id": 7707020885,
-  "lat": 50.8461028,
-  "lon": 4.3490711,
+  "lat": 50.8461661,
+  "lon": 4.3491766,
   "tags": {
     "artist:wikidata": "Q1671666",
     "artist_name": "Invader",
@@ -1377,8 +1377,8 @@
 {
   "type": "node",
   "id": 7707020888,
-  "lat": 50.8273662,
-  "lon": 4.3714397,
+  "lat": 50.8271647,
+  "lon": 4.3717331,
   "tags": {
     "artist:wikidata": "Q1671666",
     "artist_name": "Invader",
