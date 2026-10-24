@@ -2,7 +2,7 @@
   "version": 0.6,
   "generator": "Overpass API 0.7.62.11 87bfad18",
   "osm3s": {
-    "timestamp_osm_base": "2026-10-23T09:30:36Z",
+    "timestamp_osm_base": "2026-10-24T09:01:01Z",
     "copyright": "The data included in this document is from www.openstreetmap.org. The data is made available under ODbL."
   },
   "elements": [
@@ -11997,6 +11997,19 @@
     "artwork_type": "mosaic",
     "description": "Oeuvre VRS_41 d'Invader représentant plusieurs affiches pixélisées, la principale étant un portrait de Louis XIV.",
     "name": "VRS_41",
+    "tourism": "artwork"
+  }
+},
+{
+  "type": "node",
+  "id": 14312228495,
+  "lat": 13.7245194,
+  "lon": 100.5490268,
+  "tags": {
+    "artist_name": "Invader",
+    "artwork_type": "graffiti",
+    "material": "ceramic",
+    "name": "BGK_35",
     "tourism": "artwork"
   }
 }
