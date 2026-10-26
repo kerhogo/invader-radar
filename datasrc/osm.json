@@ -2,7 +2,7 @@
   "version": 0.6,
   "generator": "Overpass API 0.7.62.11 87bfad18",
   "osm3s": {
-    "timestamp_osm_base": "2026-10-25T09:18:51Z",
+    "timestamp_osm_base": "2026-10-26T10:18:21Z",
     "copyright": "The data included in this document is from www.openstreetmap.org. The data is made available under ODbL."
   },
   "elements": [
@@ -11719,6 +11719,7 @@
   "tags": {
     "artist:wikidata": "Q1671666",
     "artist_name": "Invader",
+    "artwork_type": "mosaic",
     "check_date": "2026-05-19",
     "level": "1",
     "name": "PA_1545",
