@@ -2,7 +2,7 @@
   "version": 0.6,
   "generator": "Overpass API 0.7.62.11 87bfad18",
   "osm3s": {
-    "timestamp_osm_base": "2026-11-02T12:35:43Z",
+    "timestamp_osm_base": "2026-11-03T12:06:44Z",
     "copyright": "The data included in this document is from www.openstreetmap.org. The data is made available under ODbL."
   },
   "elements": [
@@ -12011,6 +12011,22 @@
     "material": "ceramic",
     "name": "BGK_35",
     "tourism": "artwork"
+  }
+},
+{
+  "type": "node",
+  "id": 14342669993,
+  "lat": 49.7733201,
+  "lon": 4.7198013,
+  "tags": {
+    "artist:wikidata": "Q1671666",
+    "artist_name": "Invader",
+    "artwork_subject": "street_art",
+    "artwork_type": "mosaic",
+    "note": "Pas sûr qu'il s'agisse d'un Invader officiel, étant donné qu'il n'apparait pas sur le site officiel / Unsure whether an official Invader, as it does not appear on the official website",
+    "support": "wall",
+    "tourism": "artwork",
+    "wikimedia_commons": "File:Invader2distant (CM).jpg"
   }
 }
 
