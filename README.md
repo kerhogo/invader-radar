@@ -74,6 +74,7 @@ rétrécit* (en local : `--allow-missing` pour `fetch-spotter`, `--allow-shrink`
 |---|---|
 | [Space Invaders World Database](https://github.com/goguelnikov/SpaceInvaders) | socle coordonnées/points (communautaire) |
 | [OpenStreetMap](https://www.openstreetmap.org/copyright) via Overpass et Nominatim (© contributeurs OSM, ODbL) | nouveautés, coordonnées manquantes, signaux « intérieur », limites administratives et contours de ville |
+| [InvAnim](https://github.com/cplanty/InvAnim) (cplanty, d'après la carte de [pnote.eu](https://pnote.eu/projects/invaders/map/)) | positions approximatives (souvent une grille d'environ 20 m) des invaders que les deux bases ci-dessus ne localisent pas |
 | [Invader Spotter](https://www.invader-spotter.art/) | statuts à jour (OK/dégradé/détruit/caché), référentiel officiel des villes |
 | [Open Data Paris](https://opendata.paris.fr) (ODbL) | 80 quartiers + 20 arrondissements |
 | API FlashInvaders | progression du joueur, dénominateurs officiels |

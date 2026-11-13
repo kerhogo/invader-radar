@@ -53,6 +53,7 @@ export function renderSettings(): void {
       <p class="hint">
         Données : communauté <a href="https://github.com/goguelnikov/SpaceInvaders" target="_blank" rel="noopener">Space Invaders World Database</a>,
         <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> (ODbL),
+        positions récentes <a href="https://github.com/cplanty/InvAnim" target="_blank" rel="noopener">InvAnim</a>,
         statuts <a href="https://www.invader-spotter.art/" target="_blank" rel="noopener">Invader Spotter</a>,
         quartiers <a href="https://opendata.paris.fr" target="_blank" rel="noopener">Open Data Paris</a>.
         Progression : API FlashInvaders. Projet indépendant, non affilié à Invader ni à FlashInvaders.

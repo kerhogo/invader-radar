@@ -6,7 +6,9 @@
  *  2. OSM/Overpass (nouveautés, coords manquantes, signaux « intérieur »)
  *  3. Invader Spotter (statuts frais, référentiel des villes, news — cache .cache/spotter.json
  *     produit par scripts/fetch-spotter.mjs)
- *  4. public/data/overrides.json (corrections manuelles)
+ *  4. InvAnim (positions de dernier recours, approximatives, pour les invaders récents que ni
+ *     SIWD ni OSM ne localisent encore)
+ *  5. public/data/overrides.json (corrections manuelles)
  * puis affecte chaque invader localisé à ses zones : quartiers et arrondissements
  * d'Open Data Paris, communes de banlieue (zones/PA-suburbs.geojson) et découpages
  * CODE-z1/z2.geojson générés par scripts/fetch-zones.mjs.
@@ -54,6 +56,11 @@ const SPOTTER_MAX_AGE_DAYS = 2;
 const SPOTTER_MIN_SHARE = 0.9;
 /** Écart SIWD ↔ OSM au-delà duquel une position mérite un arbitrage manuel (overrides.json). */
 const OSM_GAP_M = 100;
+/** Source de dernier recours : dépôt cplanty/InvAnim (voir loadInvAnim). */
+const INVANIM_URL = "https://raw.githubusercontent.com/cplanty/InvAnim/main/site/invaders.json";
+const INVANIM_MIN_ROWS = 4000;
+/** Une position de dernier recours n'est retenue que si elle tombe dans le secteur de sa ville. */
+const FILL_MAX_DISTANCE_M = 60_000;
 /** Distance minimale entre la bulle d'une ville sans découpage ni contour et ses mosaïques. */
 const BUBBLE_MIN_DISTANCE_M = 300;
 /** Part des invaders publiés qui peut disparaître d'une génération à l'autre sans --allow-shrink. */
@@ -363,6 +370,70 @@ async function loadSpotter(published) {
   return { spotter: raw, derogation: problems.length > 0 };
 }
 
+/* ---------- 4. InvAnim (positions de dernier recours) ---------- */
+
+/**
+ * Le dépôt cplanty/InvAnim publie une position pour des invaders que ni SIWD ni OSM ne
+ * localisent (Stockholm, derniers PA, quelques anciens). Sa précision varie : les ajouts récents
+ * sont souvent calés sur une grille d'environ 20 m — assez pour le radar, pas un point exact.
+ * On n'en garde que l'identifiant et la position : ni le statut (celui d'Invader Spotter fait
+ * foi), ni l'indice, ni le lien (qui en diraient trop).
+ * La copie vendorisée (datasrc/invanim.json) ne contient que les positions adoptées. C'est le
+ * dernier connu bon : elle sert si le dépôt ne répond pas, et une position adoptée y reste tant
+ * qu'aucune autre source ne localise l'invader, même si le dépôt cesse de la publier. Pour en
+ * retirer une à la main (position fausse), supprimer sa ligne du fichier.
+ */
+async function loadInvAnim() {
+  const valid = p => ID_RE.test(p?.id ?? "") && Number.isFinite(p.lat) && Number.isFinite(p.lng)
+    && Math.abs(p.lat) <= 90 && Math.abs(p.lng) <= 180;
+  let copy = null;
+  try { copy = await readJsonIfExists(join(DATASRC, "invanim.json")); }
+  catch (err) { warn(`${err.message} — positions de dernier recours déjà adoptées ignorées`); }
+  const last = new Map((Array.isArray(copy?.positions) ? copy.positions : []).filter(valid).map(p => [p.id, p]));
+  if (!OFFLINE) {
+    try {
+      const res = await fetch(INVANIM_URL, { headers: { "User-Agent": UA }, signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const raw = JSON.parse(await res.text());
+      if (!Array.isArray(raw)) throw new Error("tableau attendu");
+      const positions = new Map();
+      for (const e of raw) {
+        if (!ID_RE.test(e?.id ?? "") || !Number.isFinite(e.obf_lat) || !Number.isFinite(e.obf_lng)) continue;
+        if (Math.abs(e.obf_lat) > 90 || Math.abs(e.obf_lng) > 180) continue;
+        positions.set(e.id, { id: e.id, lat: e.obf_lat, lng: e.obf_lng });
+      }
+      if (positions.size < INVANIM_MIN_ROWS) throw new Error(`contenu suspect (${positions.size} positions)`);
+      return { positions, last, fresh: true };
+    } catch (err) {
+      warn(`invanim.json : ${err.message} — repli sur datasrc/ (${last.size} position(s) déjà adoptée(s))`);
+    }
+  }
+  return { positions: last, last, fresh: false };
+}
+
+/** Centre et portée (demi-diagonale, km) du contour d'une ville ; null si elle n'en a pas. */
+async function outlineBox(code) {
+  const fc = await readJsonIfExists(join(OUT, "zones", `${code}-outline.geojson`));
+  if (!fc) return null;
+  const geom = fc.features?.[0]?.geometry;
+  const rings = geom?.type === "Polygon" ? [geom.coordinates[0]]
+    : geom?.type === "MultiPolygon" ? geom.coordinates.map(p => p[0]) : [];
+  if (!rings.length) throw new Error(`${code}-outline.geojson : contour sans polygone`);
+  // emprise du plus grand polygone (un territoire lointain ne doit pas déporter le centre)
+  let best = null;
+  for (const ring of rings) {
+    const xs = ring.map(p => p[0]), ys = ring.map(p => p[1]);
+    const b = { minX: Math.min(...xs), maxX: Math.max(...xs), minY: Math.min(...ys), maxY: Math.max(...ys) };
+    b.area = (b.maxX - b.minX) * (b.maxY - b.minY);
+    if (!best || b.area > best.area) best = b;
+  }
+  return {
+    lat: Math.round(((best.minY + best.maxY) / 2) * 1e5) / 1e5,
+    lng: Math.round(((best.minX + best.maxX) / 2) * 1e5) / 1e5,
+    reach: Math.ceil(distanceM(best.minY, best.minX, best.maxY, best.maxX) / 2000)
+  };
+}
+
 /* ---------- Zones Paris ---------- */
 
 const zoneName = p => p.l_qu ?? p.l_ar ?? p.l_aroff ?? p.name ?? "?";
@@ -535,6 +606,70 @@ async function main() {
     }
   }
 
+  // Positions de dernier recours (InvAnim) : seulement pour les invaders qu'aucune autre source ne
+  // localise, jamais à la place d'une position connue, et seulement si elles tombent dans le secteur
+  // de la ville — autour de ses invaders déjà localisés, à défaut dans l'emprise de son contour.
+  const invanim = await loadInvAnim();
+  const sectors = new Map();
+  const sectorOf = async code => {
+    if (!sectors.has(code)) {
+      const known = [...items.values()].filter(i => i.city === code && i.lat !== undefined && !i.sources.includes("invanim"));
+      let sector = null;
+      if (known.length) {
+        const mid = arr => [...arr].sort((x, y) => x - y)[Math.floor(arr.length / 2)];
+        const lats = known.map(i => i.lat), lngs = known.map(i => i.lng);
+        const spread = distanceM(Math.min(...lats), Math.min(...lngs), Math.max(...lats), Math.max(...lngs));
+        sector = { lat: mid(lats), lng: mid(lngs), radiusM: Math.max(FILL_MAX_DISTANCE_M, spread) };
+      } else {
+        const box = await outlineBox(code);
+        if (box) sector = { lat: box.lat, lng: box.lng, radiusM: box.reach * 1000 + 20_000 };
+      }
+      sectors.set(code, sector);
+    }
+    return sectors.get(code);
+  };
+  const inSector = (p, s) => !!p && distanceM(s.lat, s.lng, p.lat, p.lng) <= s.radiusM;
+  const filled = [], rejected = [], kept = [], noSector = new Set();
+  for (const inv of [...items.values()]) {
+    if (inv.lat !== undefined) continue;
+    const today = invanim.positions.get(inv.id);
+    const before = invanim.last.get(inv.id);
+    if (!today && !before) continue;
+    const sector = await sectorOf(inv.city);
+    if (!sector) { noSector.add(inv.city); continue; }
+    let p = today;
+    if (!inSector(today, sector)) {
+      if (today) rejected.push(inv.id);
+      // dernier connu bon : la position adoptée lors d'une génération précédente reste valable
+      // quand le dépôt ne la publie plus (fichier amputé, ligne retirée)
+      if (!inSector(before, sector)) continue;
+      p = before;
+      if (invanim.fresh) kept.push(inv.id);
+    }
+    inv.lat = p.lat;
+    inv.lng = p.lng;
+    inv.sources.push("invanim");
+    filled.push({ id: inv.id, lat: p.lat, lng: p.lng });
+  }
+  if (filled.length) {
+    const byCity = {};
+    for (const p of filled) byCity[p.id.split("_")[0]] = (byCity[p.id.split("_")[0]] ?? 0) + 1;
+    console.log(`InvAnim : ${filled.length} positions de dernier recours (${Object.entries(byCity).map(([c, n]) => `${c} ${n}`).join(", ")})`);
+  }
+  if (kept.length) console.log(`InvAnim : ${kept.length} position(s) absente(s) du dépôt aujourd'hui, dernière position adoptée conservée (${kept.slice(0, 10).join(", ")})`);
+  if (rejected.length) warn(`InvAnim : ${rejected.length} position(s) écartée(s), hors du secteur de leur ville — ${rejected.slice(0, 10).join(", ")}`);
+  if (noSector.size) warn(`InvAnim : positions disponibles mais non vérifiables pour ${[...noSector].join(", ")} (ville sans invader localisé ni contour) — lancer « node scripts/fetch-zones.mjs --outlines »`);
+  // Copie vendorisée : uniquement les positions adoptées, réécrite seulement si elles changent.
+  // Un invader reporté de la génération précédente garde sa position sans repasser par ici :
+  // sa ligne doit survivre à ce run.
+  if (invanim.fresh) {
+    const lines = new Map(filled.map(p => [p.id, p]));
+    for (const id of carried) if (invanim.last.has(id) && !lines.has(id)) lines.set(id, invanim.last.get(id));
+    const text = jsonLines({ positions: [...lines.values()].sort((x, y) => x.id.localeCompare(y.id, "en", { numeric: true })) });
+    const current = await readFile(join(DATASRC, "invanim.json"), "utf8").catch(() => null);
+    if (text !== current) await writeFile(join(DATASRC, "invanim.json"), text);
+  }
+
   // Heuristique intérieur sur les hints SIWD
   for (const inv of items.values()) {
     if (!inv.indoor && inv.hint && INDOOR_RE.test(inv.hint)) inv.indoor = true;
@@ -599,24 +734,8 @@ async function main() {
   for (const file of zoneFiles.filter(f => f.endsWith("-outline.geojson"))) {
     const code = file.split("-")[0];
     if (zonedCities.has(code)) continue;
-    const geom = (await readJsonIfExists(join(OUT, "zones", file)))?.features?.[0]?.geometry;
-    const rings = geom?.type === "Polygon" ? [geom.coordinates[0]]
-      : geom?.type === "MultiPolygon" ? geom.coordinates.map(p => p[0]) : [];
-    if (!rings.length) throw new Error(`${file} : contour sans polygone`);
-    // centre de l'emprise du plus grand polygone (un territoire lointain ne doit pas le déporter)
-    let best = null;
-    for (const ring of rings) {
-      const xs = ring.map(p => p[0]), ys = ring.map(p => p[1]);
-      const b = { minX: Math.min(...xs), maxX: Math.max(...xs), minY: Math.min(...ys), maxY: Math.max(...ys) };
-      b.area = (b.maxX - b.minX) * (b.maxY - b.minY);
-      if (!best || b.area > best.area) best = b;
-    }
-    outlineCenters.set(code, {
-      lat: Math.round(((best.minY + best.maxY) / 2) * 1e5) / 1e5,
-      lng: Math.round(((best.minX + best.maxX) / 2) * 1e5) / 1e5,
-      // demi-diagonale de l'emprise, en km : la carte charge le contour dès qu'on en approche
-      reach: Math.ceil(distanceM(best.minY, best.minX, best.maxY, best.maxX) / 2000)
-    });
+    // centre de l'emprise + portée en km : la carte charge le contour dès qu'on en approche
+    outlineCenters.set(code, await outlineBox(code));
   }
   if (outlineCenters.size) console.log(`Contours de ville : ${outlineCenters.size}`);
 
@@ -792,6 +911,11 @@ async function main() {
     sources: {
       siwd: { note: `Space Invaders World Database ${siwdLabel(siwd.version)}`, version: siwd.version, count: siwd.count },
       osm: { date: osmDate, note: `${osmNew} nouveaux, ${osmCoords} coords complétées` },
+      invanim: {
+        date: invanim.fresh ? TODAY : previousMeta?.sources?.invanim?.date ?? TODAY,
+        count: filled.length,
+        note: "positions de dernier recours, de précision variable (souvent une grille d'environ 20 m)"
+      },
       spotter: spotter
         ? { date: spotter.date, count: Object.keys(spotter.items).length, cities: Object.keys(ref).length, perCity: spotterPerCity }
         : { note: "non disponible" },
