@@ -7,7 +7,11 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "data": "node scripts/build-data.mjs"
+    "test": "node --test scripts/pipeline.test.mjs",
+    "data:spotter": "node scripts/fetch-spotter.mjs",
+    "data:check": "node scripts/check-data.mjs",
+    "data": "node scripts/build-data.mjs",
+    "postdata": "node scripts/check-data.mjs"
   },
   "dependencies": {
     "maplibre-gl": "^4.7.1"

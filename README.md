@@ -23,12 +23,39 @@ directement depuis l'API FlashInvaders avec ton uid (stocké uniquement sur ton 
 
 ```bash
 npm install
-node scripts/fetch-spotter.mjs   # statuts à jour (facultatif, ~8 min, poli avec le site)
-node scripts/build-data.mjs      # génère public/data/
-npm run dev
+npm run dev      # les données publiées (public/data/) sont déjà dans le dépôt
 ```
 
-`node scripts/check-data.mjs [uid]` vérifie les invariants des données générées.
+### Régénérer les données
+
+La CI est seule propriétaire de `public/data/` : elle les régénère et les publie chaque jour.
+En local, la régénération sert à mettre au point le pipeline.
+
+```bash
+npm run data:spotter   # statuts à jour : une passe polie sur Invader Spotter (~10 min)
+npm run data           # fusionne les sources, génère public/data/, contrôle les invariants
+npm test               # tests du pipeline (sans réseau)
+```
+
+`build-data` refuse un cache Invader Spotter absent, périmé ou partiel : il publierait des
+statuts de 2024 à la place des statuts du jour. `npm run data -- --allow-stale` lève ce refus
+pour un essai local, dont le résultat ne se committe pas. Avant de committer des données
+générées à la main : `git pull --rebase`, puis une passe Spotter du jour.
+
+`npm run data:check` vérifie les invariants des données générées ; avec `FI_UID=<uid>`, il les
+croise aussi avec ta galerie FlashInvaders.
+
+### Quand le rafraîchissement échoue
+
+Le pipeline préfère s'arrêter plutôt que publier des données partielles ; les données de la
+veille restent en ligne. Une panne passagère d'une source (connexion coupée, 5xx) est rejouée
+ou contournée par la copie `datasrc/` sans intervention : relancer le run suffit si elle a duré.
+
+Il s'arrête aussi quand la base semble **rétrécir** : ville déjà publiée absente du référentiel,
+liste d'une ville vide ou écourtée, invaders publiés introuvables. C'est presque toujours une
+page mal lue. Si Invader Spotter a réellement retiré ces lignes, relancer le workflow
+« Rafraîchissement quotidien des données » à la main en cochant *Accepter une base qui
+rétrécit* (en local : `--allow-missing` pour `fetch-spotter`, `--allow-shrink` pour `build-data`).
 
 ## Données
 

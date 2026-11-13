@@ -10,13 +10,15 @@ permissions:
   pages: write
   id-token: write
 
+# Un déploiement en cours va toujours à son terme ; seul le dernier en attente est conservé.
 concurrency:
   group: pages
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   build-deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -27,6 +29,12 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
+      - name: Tests du pipeline de données
+        run: npm test
+      # Même porte que le rafraîchissement quotidien : des données poussées à la main
+      # ne sont jamais publiées sans contrôle.
+      - name: Contrôles d'invariants des données
+        run: node scripts/check-data.mjs
       - run: npm run build
       - uses: actions/configure-pages@v6
       - uses: actions/upload-pages-artifact@v5

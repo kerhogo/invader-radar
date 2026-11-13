@@ -1,18 +1,31 @@
 /**
  * Pipeline de données Invader Radar.
  *
- * Fusionne 4 sources par id (PA_92, NY_12…) :
- *  1. Space Invaders World Database (socle coords/points/statuts, figé déc. 2024)
+ * Fusionne par id (PA_92, NY_12…) :
+ *  1. Space Invaders World Database (socle coords/points/statuts, dernière version Vxx publiée)
  *  2. OSM/Overpass (nouveautés, coords manquantes, signaux « intérieur »)
- *  3. Invader Spotter (statuts frais — via scripts/fetch-spotter.mjs, cache .cache/spotter.json)
- *  4. overrides.json (corrections manuelles)
+ *  3. Invader Spotter (statuts frais, référentiel des villes, news — cache .cache/spotter.json
+ *     produit par scripts/fetch-spotter.mjs)
+ *  4. public/data/overrides.json (corrections manuelles)
+ * puis affecte chaque invader localisé à ses zones : quartiers et arrondissements
+ * d'Open Data Paris, communes de banlieue (zones/PA-suburbs.geojson) et découpages
+ * CODE-z1/z2.geojson générés par scripts/fetch-zones.mjs.
  *
- * Produit : public/data/{invaders.json, cities.json intégré, meta.json, changelog.json, zones/*.geojson}
- * Usage : node scripts/build-data.mjs [--offline] (--offline : n'utilise que le cache .cache/)
+ * Produit : public/data/{invaders.json (invaders + villes), changelog.json, meta.json,
+ *           zones/PA-z1.geojson, zones/PA-z2.geojson} et rafraîchit les copies datasrc/.
+ *
+ * Usage : node scripts/build-data.mjs [--offline] [--allow-stale] [--allow-shrink]
+ *   --offline      : aucun réseau, lit les copies vendorisées datasrc/ (+ .cache/spotter.json)
+ *   --allow-stale  : accepte un cache Invader Spotter absent, périmé ou partiel
+ *                    (essai local uniquement — ne jamais committer le résultat)
+ *   --allow-shrink : accepte qu'un invader ou une ville déjà publiés disparaissent des sources
+ *                    (sans cette option, ils sont reportés de la génération précédente, et
+ *                    une disparition de plus de 0,5 % de la base arrête le script)
  */
 import { mkdir, readFile, writeFile, access, readdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { ID_RE, distanceM, jsonLines, readJsonIfExists, warn } from "./lib/pipeline.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const CACHE = join(ROOT, ".cache");
@@ -20,28 +33,52 @@ const CACHE = join(ROOT, ".cache");
 // disponible même quand Overpass/opendata sont en panne (504…).
 const DATASRC = join(ROOT, "datasrc");
 const OUT = join(ROOT, "public", "data");
+const UA = "InvaderRadar-DataPipeline/0.1 (projet perso non commercial)";
 const OFFLINE = process.argv.includes("--offline");
+const ALLOW_STALE = process.argv.includes("--allow-stale");
+const ALLOW_SHRINK = process.argv.includes("--allow-shrink");
+
+// Un seul horodatage pour toute la génération (invaders.json, meta.json, changelog)
+const GENERATED = new Date().toISOString();
+const TODAY = GENERATED.slice(0, 10);
+
+/** Délai maximal d'un téléchargement : au-delà, repli sur la copie vendorisée. */
+const FETCH_TIMEOUT_MS = 60_000;
+const OVERPASS_TIMEOUT_MS = 200_000; // la requête Overpass s'accorde elle-même 180 s
+/** Seuils de vraisemblance des sources : en dessous, le contenu est refusé (repli datasrc/). */
+const SIWD_MIN_ROWS = 4000;
+const SIWD_MIN_LOCATED_SHARE = 0.9;
+const OSM_MIN_NODES = 500;
+/** Cache Invader Spotter : âge maximal et part minimale des statuts déjà publiés. */
+const SPOTTER_MAX_AGE_DAYS = 2;
+const SPOTTER_MIN_SHARE = 0.9;
+/** Écart SIWD ↔ OSM au-delà duquel une position mérite un arbitrage manuel (overrides.json). */
+const OSM_GAP_M = 100;
+/** Part des invaders publiés qui peut disparaître d'une génération à l'autre sans --allow-shrink. */
+const MAX_GONE_SHARE = 0.005;
 
 /* Le dépôt SIWD publie des versions numérotées (V05, V06…). On détecte la plus
    récente à chaque run : rester figé sur une version périmée prive le radar des
    coordonnées des invaders récents (cas PA_1531+ resté aveugle avec la V05). */
 const SIWD_MIN_VERSION = 6;
-const siwdUrlFor = v => `https://raw.githubusercontent.com/goguelnikov/SpaceInvaders/master/world_space_invaders_V${String(v).padStart(2, "0")}.json`;
+const siwdLabel = v => `V${String(v).padStart(2, "0")}`;
+const siwdUrlFor = v => `https://raw.githubusercontent.com/goguelnikov/SpaceInvaders/master/world_space_invaders_${siwdLabel(v)}.json`;
 
-async function latestSiwdUrl() {
-  let best = SIWD_MIN_VERSION;
-  for (let v = SIWD_MIN_VERSION + 1; v <= SIWD_MIN_VERSION + 10; v++) {
+/** Cherche une version plus récente que `known`, sans jamais redescendre en dessous. */
+async function latestSiwdVersion(known) {
+  let best = known;
+  for (let v = known + 1; v <= known + 10; v++) {
     try {
       const res = await fetch(siwdUrlFor(v), {
         method: "HEAD",
-        headers: { "User-Agent": "InvaderRadar-DataPipeline/0.1 (projet perso non commercial)" }
+        headers: { "User-Agent": UA },
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS)
       });
-      if (!res.ok) break;
+      if (!res.ok) break; // 404 : fin de liste — toute autre erreur : on en reste à la version connue
       best = v;
     } catch { break; } // réseau indisponible : on garde la dernière version connue
   }
-  console.log(`SIWD : version V${String(best).padStart(2, "0")}`);
-  return siwdUrlFor(best);
+  return best;
 }
 const OVERPASS_URL = "https://overpass-api.de/api/interpreter";
 const QUARTIERS_URL = "https://opendata.paris.fr/api/explore/v2.1/catalog/datasets/quartier_paris/exports/geojson";
@@ -90,7 +127,7 @@ const COUNTRY_INFO = (() => {
   add("AMS NOO RTD", "Pays-Bas", "🇳🇱", "Europe");
   add("FAO PRT2", "Portugal", "🇵🇹", "Europe");
   add("LJU", "Slovénie", "🇸🇮", "Europe");
-  add("HALM VSB", "Suède", "🇸🇪", "Europe");
+  add("HALM VSB STK", "Suède", "🇸🇪", "Europe");
   add("ANZR BSL BRN GNV LSN", "Suisse", "🇨🇭", "Europe");
   add("GRU", "Bosnie-Herzégovine", "🇧🇦", "Europe");
   add("IST", "Turquie", "🇹🇷", "Europe");
@@ -119,26 +156,33 @@ const COUNTRY_INFO = (() => {
 
 /* ---------- utilitaires ---------- */
 
-async function fetchCached(name, url, options) {
+/**
+ * Télécharge une source et rafraîchit sa copie vendorisée. En cas de panne, de délai
+ * dépassé ou de contenu refusé par `accept`, repli sur la copie (dernier connu bon,
+ * présente même en CI). `accept(text)` valide le contenu — en levant une erreur s'il
+ * est suspect — et renvoie le texte à vendoriser (forme canonique).
+ * Renvoie { text, fresh } : `fresh` est faux quand la copie a servi.
+ */
+async function fetchCached(name, url, { accept = text => text, timeoutMs = FETCH_TIMEOUT_MS, ...options } = {}) {
   const path = join(DATASRC, name);
-  if (OFFLINE) return readFile(path, "utf8");
-  try {
-    const res = await fetch(url, {
-      ...options,
-      headers: {
-        "User-Agent": "InvaderRadar-DataPipeline/0.1 (projet perso non commercial)",
-        ...(options?.headers ?? {})
-      }
-    });
-    if (!res.ok) throw new Error(`${url} → HTTP ${res.status}`);
-    const text = await res.text();
-    await writeFile(path, text); // rafraîchit la copie committée
-    return text;
-  } catch (err) {
-    // repli sur la source vendorisée (dernier bon run) — présente même en CI
-    console.warn(`! ${name} : ${err.message} — repli sur datasrc/ (dernier connu)`);
-    return readFile(path, "utf8");
+  if (!OFFLINE) {
+    try {
+      const res = await fetch(url, {
+        ...options,
+        signal: AbortSignal.timeout(timeoutMs),
+        headers: { "User-Agent": UA, ...(options.headers ?? {}) }
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const text = accept(await res.text());
+      // la copie committée n'est réécrite que si le contenu change (pas de commit quotidien à vide)
+      const current = await readFile(path, "utf8").catch(() => null);
+      if (text !== current) await writeFile(path, text);
+      return { text, fresh: true };
+    } catch (err) {
+      warn(`${name} : ${err.message} — repli sur datasrc/ (dernier connu)`);
+    }
   }
+  return { text: await readFile(path, "utf8"), fresh: false };
 }
 
 function stripBom(s) {
@@ -200,43 +244,79 @@ function roundCoords(geom, digits = 5) {
 
 /* ---------- 1. SIWD ---------- */
 
-async function loadSiwd() {
-  const url = OFFLINE ? siwdUrlFor(SIWD_MIN_VERSION) : await latestSiwdUrl();
-  const raw = JSON.parse(stripBom(await fetchCached("siwd.json", url)));
+function parseSiwd(text) {
+  const raw = JSON.parse(stripBom(text));
+  if (!Array.isArray(raw)) throw new Error("tableau attendu");
   const items = new Map();
+  let located = 0;
   for (const e of raw) {
     const id = String(e.id ?? "").trim().replace(/\s+/g, "");
-    if (!/^[A-Z]+_\d+$/.test(id)) continue;
+    if (!ID_RE.test(id)) continue;
+    const lat = parseCoord(e.lat);
+    const lng = parseCoord(e.lng);
+    if (lat !== undefined && lng !== undefined) located++;
     items.set(id, {
       id,
       city: id.split("_")[0],
-      lat: parseCoord(e.lat),
-      lng: parseCoord(e.lng),
+      lat,
+      lng,
       status: normStatus(e.status),
       points: Number(e.points) || 0,
       hint: String(e.hint ?? ""),
       sources: ["siwd"]
     });
   }
-  console.log(`SIWD : ${items.size} invaders`);
+  // Une colonne renommée dans une nouvelle version ne lève aucune erreur : elle vide
+  // les coordonnées. On refuse donc un contenu qui ne ressemble plus au socle.
+  if (items.size < SIWD_MIN_ROWS || located < items.size * SIWD_MIN_LOCATED_SHARE) {
+    throw new Error(`contenu suspect (${items.size} invaders dont ${located} localisés)`);
+  }
   return items;
+}
+
+/** `knownVersion` : dernière version acceptée (meta.json précédent), plancher de la détection. */
+async function loadSiwd(knownVersion) {
+  const candidate = OFFLINE ? knownVersion : await latestSiwdVersion(knownVersion);
+  const { text, fresh } = await fetchCached("siwd.json", siwdUrlFor(candidate), {
+    accept: t => { parseSiwd(t); return t; }
+  });
+  const items = parseSiwd(text);
+  // en repli, la copie vendorisée est celle de la dernière version acceptée
+  const version = fresh ? candidate : knownVersion;
+  console.log(`SIWD : version ${siwdLabel(version)}, ${items.size} invaders`);
+  return { items, version, count: items.size };
 }
 
 /* ---------- 2. OSM ---------- */
 
+/**
+ * Forme vendorisée de la réponse Overpass : les seuls nœuds, triés, un par ligne.
+ * L'en-tête (horodatage de la base) changeait le fichier chaque jour sans donnée nouvelle.
+ */
+function canonicalOsm(text) {
+  const data = JSON.parse(text);
+  // Overpass répond 200 avec un résultat tronqué quand il dépasse son délai ou sa mémoire
+  if (data.remark) throw new Error(`réponse partielle (${data.remark})`);
+  const elements = [...(data.elements ?? [])].sort((a, b) => a.id - b.id);
+  if (elements.length < OSM_MIN_NODES) throw new Error(`${elements.length} nœuds seulement`);
+  return jsonLines({ elements });
+}
+
 async function loadOsm() {
   const query = `[out:json][timeout:180];node["artist_name"~"^[Ii]nvader$"];out body;`;
-  const raw = await fetchCached("osm.json", OVERPASS_URL, {
+  const { text, fresh } = await fetchCached("osm.json", OVERPASS_URL, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: "data=" + encodeURIComponent(query)
+    body: "data=" + encodeURIComponent(query),
+    timeoutMs: OVERPASS_TIMEOUT_MS,
+    accept: canonicalOsm
   });
-  const data = JSON.parse(raw);
+  const data = JSON.parse(text);
   const nodes = [];
   for (const el of data.elements ?? []) {
     const t = el.tags ?? {};
     const ref = String(t.ref ?? t.name ?? "").trim().replace(/\s+/g, "");
-    if (!/^[A-Z]+_\d+$/.test(ref)) continue;
+    if (!ID_RE.test(ref)) continue;
     const text = [t.description, t.note, t["addr:place"]].filter(Boolean).join(" ");
     nodes.push({
       id: ref,
@@ -247,32 +327,68 @@ async function loadOsm() {
     });
   }
   console.log(`OSM : ${nodes.length} invaders taggés`);
-  return nodes;
+  return { nodes, fresh };
 }
 
 /* ---------- 3. Invader Spotter (cache produit par fetch-spotter.mjs) ---------- */
 
-async function loadSpotter() {
-  try {
-    const raw = JSON.parse(await readFile(join(CACHE, "spotter.json"), "utf8"));
-    console.log(`Invader Spotter : ${Object.keys(raw.items).length} statuts (du ${raw.date})`);
-    return raw;
-  } catch {
-    console.warn("! Pas de cache Invader Spotter (lance scripts/fetch-spotter.mjs) — statuts SIWD/OSM seuls.");
-    return null;
+/**
+ * `published` : entrée `sources.spotter` du meta.json précédent. Un cache absent,
+ * périmé ou partiel ferait retomber des centaines de statuts sur ceux du socle (2024)
+ * et publierait autant de faux changements : refusé, sauf --allow-stale.
+ */
+async function loadSpotter(published) {
+  const raw = await readJsonIfExists(join(CACHE, "spotter.json"));
+  const problems = [];
+  if (!raw) {
+    problems.push("absent");
+  } else {
+    const count = Object.keys(raw.items ?? {}).length;
+    const ageDays = (Date.parse(TODAY) - Date.parse(raw.date)) / 864e5;
+    if (!(ageDays <= SPOTTER_MAX_AGE_DAYS)) problems.push(`daté du ${raw.date}`);
+    if (published?.date && raw.date < published.date) problems.push(`antérieur à la dernière publication (${published.date})`);
+    if (published?.count && count < published.count * SPOTTER_MIN_SHARE) problems.push(`partiel (${count} statuts contre ${published.count} publiés)`);
   }
+  if (problems.length) {
+    const message = `Cache Invader Spotter ${problems.join(", ")}`;
+    if (!ALLOW_STALE) {
+      throw new Error(`${message} — lance scripts/fetch-spotter.mjs (ou --allow-stale pour un essai local, à ne pas committer)`);
+    }
+    warn(`${message} — accepté (--allow-stale)${raw ? "" : " : statuts SIWD/OSM seuls"}`);
+  }
+  if (raw) console.log(`Invader Spotter : ${Object.keys(raw.items ?? {}).length} statuts (du ${raw.date})`);
+  // derogation : cache accepté malgré un défaut (--allow-stale) — les garde-fous de rétrécissement ne bloquent plus
+  return { spotter: raw, derogation: problems.length > 0 };
 }
 
 /* ---------- Zones Paris ---------- */
 
-async function loadParisZones() {
-  const quartiers = JSON.parse(await fetchCached("quartiers.geojson", QUARTIERS_URL));
-  const arrondissements = JSON.parse(await fetchCached("arrondissements.geojson", ARRONDISSEMENTS_URL));
+const zoneName = p => p.l_qu ?? p.l_ar ?? p.l_aroff ?? p.name ?? "?";
 
-  const zoneName = p => p.l_qu ?? p.l_ar ?? p.l_aroff ?? p.name ?? "?";
-  const clean = (fc, extra) => ({
+/**
+ * Forme vendorisée d'un export Open Data Paris : entités triées par code, une par ligne
+ * (l'API les renvoie dans un ordre variable, ce qui « modifiait » le fichier sans raison).
+ * Refuse un export incomplet ou dont les colonnes de nom ont changé.
+ */
+const canonicalZones = (expected, codeOf) => text => {
+  const fc = JSON.parse(text);
+  const features = [...(fc.features ?? [])];
+  if (features.length !== expected) throw new Error(`${features.length} entités au lieu de ${expected}`);
+  if (features.some(f => !f.geometry || zoneName(f.properties ?? {}) === "?")) throw new Error("entité sans géométrie ou sans nom");
+  return jsonLines({ type: "FeatureCollection", features: sortByCode(features, codeOf) });
+};
+const sortByCode = (features, codeOf) =>
+  [...features].sort((a, b) => Number(codeOf(a.properties)) - Number(codeOf(b.properties)));
+
+async function loadParisZones() {
+  const quartierCode = p => p.c_qu, arrondissementCode = p => p.c_ar;
+  const quartiers = JSON.parse((await fetchCached("quartiers.geojson", QUARTIERS_URL, { accept: canonicalZones(80, quartierCode) })).text);
+  const arrondissements = JSON.parse((await fetchCached("arrondissements.geojson", ARRONDISSEMENTS_URL, { accept: canonicalZones(20, arrondissementCode) })).text);
+
+  // tri appliqué aussi à la lecture : la sortie ne dépend pas de l'ordre de la copie vendorisée
+  const clean = (fc, codeOf, extra) => ({
     type: "FeatureCollection",
-    features: fc.features.map(f => ({
+    features: sortByCode(fc.features, codeOf).map(f => ({
       type: "Feature",
       geometry: roundCoords(f.geometry),
       properties: { name: zoneName(f.properties), ...(extra ? extra(f.properties) : {}) }
@@ -280,40 +396,70 @@ async function loadParisZones() {
   });
 
   return {
-    z1: clean(quartiers, p => ({ arrt: p.c_ar ?? null })),
-    z2: clean(arrondissements)
+    z1: clean(quartiers, quartierCode, p => ({ arrt: p.c_ar ?? null })),
+    z2: clean(arrondissements, arrondissementCode)
   };
 }
 
 /* ---------- Fusion ---------- */
 
 async function main() {
-  await mkdir(CACHE, { recursive: true });
   await mkdir(DATASRC, { recursive: true });
   await mkdir(join(OUT, "zones"), { recursive: true });
 
-  const items = await loadSiwd();
-  const osm = await loadOsm();
-  const spotter = await loadSpotter();
+  // Génération précédente, dernier connu bon : plancher de version SIWD, fraîcheur du cache
+  // Spotter, dates des sources, statuts et invaders à reporter si une source en omet un jour.
+  // (absente seulement à la toute première génération)
+  const previousMeta = await readJsonIfExists(join(OUT, "meta.json"));
+  const previous = await readJsonIfExists(join(OUT, "invaders.json"));
+  const prevItems = new Map((previous?.items ?? []).map(i => [i.id, i]));
+  const knownSiwd = Math.max(SIWD_MIN_VERSION, Number(previousMeta?.sources?.siwd?.version) || 0);
+
+  // Le cache Spotter est contrôlé avant tout téléchargement : s'il est refusé, rien n'est écrit.
+  const { spotter, derogation } = await loadSpotter(previousMeta?.sources?.spotter);
+  // Référentiel officiel des villes (Invader Spotter) ; la table curée complète les rares codes absents.
+  const ref = spotter?.cities ?? {};
+  const knowsOfficial = Object.keys(ref).length > 0;
+  const isOfficial = code => !knowsOfficial || !!ref[code] || !!CITY_NAMES[code];
+  // Une ville ne quitte pas le référentiel : s'il en manque une déjà publiée, villes.php a été mal lu.
+  const lostCities = knowsOfficial
+    ? Object.keys(previous?.cities ?? {}).filter(code => previous.cities[code].official && !ref[code])
+    : [];
+  if (lostCities.length) {
+    const message = `ville(s) publiée(s) absente(s) du référentiel du jour (${Object.keys(ref).length} villes) : ${lostCities.join(", ")}`;
+    if (!ALLOW_SHRINK && !derogation) {
+      throw new Error(`${message} — villes.php mal lu ? (--allow-shrink si Invader Spotter les a vraiment retirées)`);
+    }
+    warn(message);
+  }
+
+  const siwd = await loadSiwd(knownSiwd);
+  const items = siwd.items;
+  const { nodes: osm, fresh: osmFresh } = await loadOsm();
   const zones = await loadParisZones();
 
   // Banlieue parisienne (Meudon, Aubervilliers…) : communes générées une fois
   // par scripts/fetch-zones.mjs et commitées, fusionnées aux quartiers ET aux
   // arrondissements pour rester visibles à tous les niveaux de zoom.
-  try {
-    const suburbs = JSON.parse(await readFile(join(OUT, "zones", "PA-suburbs.geojson"), "utf8"));
+  const suburbs = await readJsonIfExists(join(OUT, "zones", "PA-suburbs.geojson"));
+  if (suburbs) {
     zones.z1.features.push(...suburbs.features);
     zones.z2.features.push(...suburbs.features);
     console.log(`Banlieue Paris : ${suburbs.features.length} communes fusionnées`);
-  } catch {
-    console.warn("! PA-suburbs.geojson absent — banlieue non zonée (lance scripts/fetch-zones.mjs)");
+  } else {
+    warn("PA-suburbs.geojson absent — banlieue non zonée (lance scripts/fetch-zones.mjs)");
   }
 
   let osmNew = 0, osmCoords = 0;
+  const gaps = [];
   for (const n of osm) {
     const existing = items.get(n.id);
     if (existing) {
       if (existing.lat === undefined) { existing.lat = n.lat; existing.lng = n.lng; osmCoords++; }
+      else if (existing.lng !== undefined) {
+        const gap = Math.round(distanceM(existing.lat, existing.lng, n.lat, n.lng));
+        if (gap > OSM_GAP_M) gaps.push(`${n.id} ${gap} m`);
+      }
       if (n.indoorSignal) existing.indoor = true;
       existing.sources.push("osm");
     } else {
@@ -327,19 +473,26 @@ async function main() {
     }
   }
   console.log(`Fusion OSM : +${osmNew} nouveaux, ${osmCoords} coords complétées`);
+  // Le socle garde la priorité, mais un écart important signale qu'une des deux sources se trompe
+  if (gaps.length) console.log(`Écarts SIWD ↔ OSM > ${OSM_GAP_M} m (à arbitrer dans overrides.json) : ${gaps.join(", ")}`);
 
+  let spotterNoStatus = 0;
   if (spotter) {
     let updated = 0;
     for (const [id, s] of Object.entries(spotter.items)) {
       const inv = items.get(id);
-      const status = normStatus(s.status);
+      // Statut illisible côté Spotter : dernier statut publié, à défaut celui du socle —
+      // jamais un faux « inconnu », jamais un retour aux statuts de 2024.
+      const hasStatus = String(s.status ?? "").trim() !== "";
+      if (!hasStatus) spotterNoStatus++;
+      const status = hasStatus ? normStatus(s.status) : prevItems.get(id)?.status ?? inv?.status ?? "unknown";
       if (inv) {
         if (inv.status !== status) updated++;
         inv.status = status;
         if (s.points) inv.points = inv.points || Number(s.points) || 0;
         if (s.location && INDOOR_RE.test(s.location)) inv.indoor = true;
         inv.sources.push("spotter");
-      } else if (/^[A-Z]+_\d+$/.test(id)) {
+      } else if (ID_RE.test(id)) {
         items.set(id, {
           id, city: id.split("_")[0], status,
           points: Number(s.points) || 0, hint: s.location ?? "",
@@ -349,6 +502,35 @@ async function main() {
       }
     }
     console.log(`Invader Spotter : ${updated} statuts actualisés`);
+    if (spotterNoStatus) warn(`Invader Spotter : ${spotterNoStatus} ligne(s) sans statut lisible — dernier statut publié conservé`);
+  }
+
+  // Dernier connu bon. Spotter peut omettre un invader un jour (liste écourtée, page vide) :
+  //  - s'il reste connu du socle ou d'OSM, son dernier statut publié fait foi, pas celui de 2024 ;
+  //  - s'il n'est plus dans aucune source, il est reporté tel quel plutôt que de disparaître
+  //    puis d'être ré-annoncé « nouveau » le lendemain (--allow-shrink accepte le retrait).
+  let keptStatus = 0;
+  for (const inv of items.values()) {
+    const before = prevItems.get(inv.id);
+    if (before && !inv.sources.includes("spotter") && inv.status !== before.status) { inv.status = before.status; keptStatus++; }
+  }
+  if (keptStatus) console.log(`Statuts : ${keptStatus} invader(s) sans ligne Spotter aujourd'hui, dernier statut publié conservé`);
+  const carried = [];
+  if (!ALLOW_SHRINK) {
+    for (const [id, p] of prevItems) {
+      if (items.has(id) || !isOfficial(p.city)) continue; // une coquille hors référentiel ne se reporte pas
+      items.set(id, {
+        id, city: p.city, lat: p.lat, lng: p.lng, status: p.status,
+        points: p.points ?? 0, hint: "", indoor: p.indoor, sources: ["previous"]
+      });
+      carried.push(id);
+    }
+  }
+  if (carried.length) {
+    warn(`${carried.length} invader(s) absent(s) des sources aujourd'hui, reporté(s) de la génération précédente : ${carried.slice(0, 20).join(", ")}${carried.length > 20 ? "…" : ""}`);
+    if (carried.length > prevItems.size * MAX_GONE_SHARE && !derogation) {
+      throw new Error(`${carried.length} invaders publiés sur ${prevItems.size} absents des sources — source tronquée ? (--allow-shrink si le retrait est réel)`);
+    }
   }
 
   // Heuristique intérieur sur les hints SIWD
@@ -357,13 +539,13 @@ async function main() {
   }
 
   // Overrides manuels (corrections de terrain)
-  try {
-    const overrides = JSON.parse(await readFile(join(OUT, "overrides.json"), "utf8"));
-    for (const [id, patch] of Object.entries(overrides)) {
-      const inv = items.get(id);
-      if (inv) Object.assign(inv, patch);
-    }
-  } catch { /* pas d'overrides : ok */ }
+  const overrides = (await readJsonIfExists(join(OUT, "overrides.json"))) ?? {};
+  for (const [id, patch] of Object.entries(overrides)) {
+    const inv = items.get(id);
+    if (inv) Object.assign(inv, patch);
+    else warn(`overrides.json : ${id} inconnu de la base, correction ignorée`);
+  }
+  console.log(`Overrides manuels : ${Object.keys(overrides).length} correction(s)`);
 
   // Zonage Paris (précalculé → runtime léger)
   let zoned = 0;
@@ -388,9 +570,10 @@ async function main() {
   zonedCities.add("PA");
   for (const code of zonedCities) {
     if (code === "PA") continue; // quartiers officiels + banlieue déjà affectés
-    let gz1 = null, gz2 = null;
-    try { gz1 = JSON.parse(await readFile(join(OUT, "zones", `${code}-z1.geojson`), "utf8")); } catch { continue; }
-    try { gz2 = JSON.parse(await readFile(join(OUT, "zones", `${code}-z2.geojson`), "utf8")); } catch { /* pas de niveau moyen */ }
+    // un fichier illisible est une erreur (la ville resterait déclarée zonée sans l'être)
+    const gz1 = await readJsonIfExists(join(OUT, "zones", `${code}-z1.geojson`));
+    const gz2 = await readJsonIfExists(join(OUT, "zones", `${code}-z2.geojson`)); // niveau moyen facultatif
+    if (!gz1) continue;
     let n = 0;
     for (const inv of items.values()) {
       if (inv.city !== code || inv.lat === undefined) continue;
@@ -408,23 +591,25 @@ async function main() {
 
   // Référentiel villes : noms + dénominateurs officiels via Invader Spotter,
   // repli sur la table curée. Seules les villes de l'univers officiel existent ici.
-  const ref = spotter?.cities ?? {};
   const cities = {};
   for (const inv of items.values()) {
     (cities[inv.city] ??= { lats: [], lngs: [], count: 0 }).count++;
     if (inv.lat !== undefined) { cities[inv.city].lats.push(inv.lat); cities[inv.city].lngs.push(inv.lng); }
   }
   const citiesOut = {};
-  const knowsOfficial = Object.keys(ref).length > 0;
+  const offReferential = new Set();
+  const noCountry = [];
   for (const [code, c] of Object.entries(cities)) {
     if (c.count < 2 && c.lats.length === 0) continue; // scories improbables
     // « villes officielles uniquement » : un code absent du référentiel Invader
     // Spotter et de la table curée est une coquille du dataset (ex. LND vs LDN)
-    if (knowsOfficial && !ref[code] && !CITY_NAMES[code]) {
+    if (!isOfficial(code)) {
       console.warn(`! ville ignorée (hors référentiel officiel) : ${code} — ${c.count} invader(s)`);
+      offReferential.add(code);
       continue;
     }
     const avg = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0;
+    if (!COUNTRY_INFO[code]) noCountry.push(code);
     const geo = COUNTRY_INFO[code] ?? { country: "Ailleurs", flag: "🌍", continent: "Ailleurs" };
     citiesOut[code] = {
       name: ref[code]?.name ?? CITY_NAMES[code] ?? code,
@@ -439,16 +624,31 @@ async function main() {
     };
   }
 
+  if (noCountry.length) console.log(`Villes sans pays dans COUNTRY_INFO (classées « Ailleurs ») : ${noCountry.join(", ")}`);
+
+  // Une ville écartée emporte ses invaders : sinon la coquille reste une cible du radar,
+  // impossible à flasher (LND_182 doublait LDN_182 au même endroit).
+  let dropped = 0;
+  for (const inv of [...items.values()]) {
+    if (offReferential.has(inv.city)) { items.delete(inv.id); dropped++; }
+  }
+  if (dropped) console.log(`Hors référentiel : ${dropped} invader(s) retiré(s) avec leur ville`);
+
   // Changelog : diff avec la génération précédente
-  const today = new Date().toISOString().slice(0, 10);
-  let previous = null;
-  try { previous = JSON.parse(await readFile(join(OUT, "invaders.json"), "utf8")); } catch { /* première génération */ }
-  let changelog = { entries: [] };
-  try { changelog = JSON.parse(await readFile(join(OUT, "changelog.json"), "utf8")); } catch { /* idem */ }
+  const today = TODAY;
+  const changelog = (await readJsonIfExists(join(OUT, "changelog.json"))) ?? { entries: [] };
 
   if (previous) {
-    const prevItems = new Map(previous.items.map(i => [i.id, i]));
     const prevCities = new Set(previous.items.map(i => i.city));
+    // Ne restent ici que les retraits voulus : coquilles hors référentiel, ou tout retrait
+    // accepté par --allow-shrink (les autres absents ont été reportés plus haut).
+    const gone = [...prevItems.keys()].filter(id => !items.has(id));
+    if (gone.length) {
+      warn(`${gone.length} invader(s) retiré(s) de la publication : ${gone.slice(0, 20).join(", ")}${gone.length > 20 ? "…" : ""}`);
+      if (gone.length > prevItems.size * MAX_GONE_SHARE && !ALLOW_SHRINK && !derogation) {
+        throw new Error(`${gone.length} invaders retirés sur ${prevItems.size} — référentiel ou source tronqués ? (--allow-shrink pour l'accepter)`);
+      }
+    }
     const fresh = [];
     for (const inv of items.values()) {
       const old = prevItems.get(inv.id);
@@ -462,9 +662,25 @@ async function main() {
         fresh.push({ date: today, type: "status_change", id: inv.id, city: inv.city, zone: inv.z1 ?? inv.z2, from: old.status, to: inv.status });
       }
     }
+    // Deuxième génération le même jour (relance après un incident) : `previous` est déjà
+    // celle du matin, `fresh` ne contient donc que l'écart depuis. Les événements déjà notés
+    // aujourd'hui sont conservés et combinés aux nouveaux, au lieu d'être effacés.
+    const isEvent = e => e.type !== "spotter_news";
+    const key = e => (e.type === "new_city" ? `city:${e.city}` : `id:${e.id}`);
+    const todays = new Map(changelog.entries.filter(e => e.date === today && isEvent(e)).map(e => [key(e), e]));
+    for (const e of fresh) {
+      const earlier = todays.get(key(e));
+      if (!earlier) todays.set(key(e), e);
+      else if (earlier.type === "status_change" && e.type === "status_change") {
+        // a → b ce matin puis b → c : un seul événement a → c (ou aucun si retour à l'état initial)
+        if (earlier.from === e.to) todays.delete(key(e));
+        else todays.set(key(e), { ...e, from: earlier.from });
+      }
+      // sinon l'invader est déjà annoncé « nouveau » aujourd'hui : cette entrée reste la bonne
+    }
     // anti-spoiler : les entrées du changelog ne portent jamais de coordonnées
-    changelog.entries = [...fresh, ...changelog.entries.filter(e => e.date !== today)];
-    console.log(`Changelog : ${fresh.length} événements aujourd'hui`);
+    changelog.entries = [...todays.values(), ...changelog.entries.filter(e => e.date !== today || !isEvent(e))];
+    console.log(`Changelog : ${fresh.length} événement(s) depuis la génération précédente, ${todays.size} aujourd'hui`);
   }
 
   // News Invader Spotter (texte brut, jamais de coordonnées) → onglet Actualités
@@ -506,19 +722,34 @@ async function main() {
     .sort((a, b) => a.id.localeCompare(b.id, "en", { numeric: true }))
     .map(({ hint, sources, ...inv }) => inv); // hint/sources restent internes au pipeline
 
-  const dataset = { generated: new Date().toISOString(), items: outItems, cities: citiesOut };
-  await writeFile(join(OUT, "invaders.json"), JSON.stringify(dataset));
-  await writeFile(join(OUT, "changelog.json"), JSON.stringify(changelog));
-  await writeFile(join(OUT, "zones", "PA-z1.geojson"), JSON.stringify(zones.z1));
-  await writeFile(join(OUT, "zones", "PA-z2.geojson"), JSON.stringify(zones.z2));
+  // Une entrée par ligne : diffs lisibles, rebases sans conflit sur le fichier entier
+  const dataset = { generated: GENERATED, items: outItems, cities: citiesOut };
+  await writeFile(join(OUT, "invaders.json"), jsonLines(dataset));
+  await writeFile(join(OUT, "changelog.json"), jsonLines(changelog));
+  await writeFile(join(OUT, "zones", "PA-z1.geojson"), jsonLines(zones.z1));
+  await writeFile(join(OUT, "zones", "PA-z2.geojson"), jsonLines(zones.z2));
+
+  // Date OSM = dernier téléchargement réussi : en repli sur la copie vendorisée, on garde l'ancienne
+  const osmDate = osmFresh ? TODAY : previousMeta?.sources?.osm?.date ?? TODAY;
+  const osmAgeDays = Math.round((Date.parse(TODAY) - Date.parse(osmDate)) / 864e5);
+  if (!OFFLINE && osmAgeDays > 7) warn(`OSM/Overpass en repli depuis ${osmAgeDays} jours (dernier téléchargement réussi : ${osmDate})`);
+
+  // Lignes Spotter par ville : fetch-spotter s'y réfère le lendemain pour repérer une liste coupée
+  const spotterPerCity = {};
+  for (const id of Object.keys(spotter?.items ?? {})) {
+    const code = id.split("_")[0];
+    spotterPerCity[code] = (spotterPerCity[code] ?? 0) + 1;
+  }
 
   const count = (fn) => outItems.filter(fn).length;
   const meta = {
-    generated: new Date().toISOString(),
+    generated: GENERATED,
     sources: {
-      siwd: { note: "Space Invaders World Database V05 (déc. 2024)", count: count(i => true) },
-      osm: { date: new Date().toISOString().slice(0, 10), note: `${osmNew} nouveaux, ${osmCoords} coords complétées` },
-      spotter: spotter ? { date: spotter.date, count: Object.keys(spotter.items).length } : { note: "non disponible" },
+      siwd: { note: `Space Invaders World Database ${siwdLabel(siwd.version)}`, version: siwd.version, count: siwd.count },
+      osm: { date: osmDate, note: `${osmNew} nouveaux, ${osmCoords} coords complétées` },
+      spotter: spotter
+        ? { date: spotter.date, count: Object.keys(spotter.items).length, cities: Object.keys(ref).length, perCity: spotterPerCity }
+        : { note: "non disponible" },
       stats: {
         total: outItems.length,
         actifs: count(i => i.status !== "destroyed" && i.status !== "wrecked"),

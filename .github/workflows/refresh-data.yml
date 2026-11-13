@@ -3,24 +3,39 @@ name: Rafraîchissement quotidien des données
 on:
   schedule:
     - cron: "20 4 * * *" # tous les jours à 04:20 UTC (heure creuse, gentil avec les sources)
-  workflow_dispatch:
+  workflow_dispatch: # attention : chaque lancement manuel refait une passe complète sur Invader Spotter
+    inputs:
+      accept_shrink:
+        description: "Accepter une base qui rétrécit (villes ou invaders vraiment retirés par Invader Spotter)"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
   actions: write
 
+# Jamais deux rafraîchissements en parallèle : deux passes de scraping et un push rejeté.
+concurrency:
+  group: refresh-data
+  cancel-in-progress: false
+
 jobs:
   refresh:
     runs-on: ubuntu-latest
+    timeout-minutes: 45 # durée normale : ~10 min ; les reprises réseau peuvent en ajouter une dizaine
     steps:
       - uses: actions/checkout@v7
+        with:
+          # tête de la branche, pas le commit du déclenchement : un run relancé ou mis en file
+          # d'attente repart ainsi des données les plus récentes
+          ref: ${{ github.ref_name }}
       - uses: actions/setup-node@v7
         with:
           node-version: 24
       - name: Statuts Invader Spotter (scraping poli, 1 passe)
-        run: node scripts/fetch-spotter.mjs
+        run: node scripts/fetch-spotter.mjs ${{ inputs.accept_shrink && '--allow-missing' || '' }}
       - name: Fusion des sources et génération des données
-        run: node scripts/build-data.mjs
+        run: node scripts/build-data.mjs ${{ inputs.accept_shrink && '--allow-shrink' || '' }}
       - name: Contrôles d'invariants
         run: node scripts/check-data.mjs
       - name: Commit si les données ont changé
@@ -28,13 +43,60 @@ jobs:
           git config user.name "invader-radar-bot"
           git config user.email "actions@users.noreply.github.com"
           git add public/data datasrc
-          if ! git diff --cached --quiet; then
-            git commit -m "data: rafraîchissement quotidien $(date -u +%F)"
-            git push
-            # un push fait par GITHUB_TOKEN ne déclenche pas les autres workflows → on lance le déploiement explicitement
-            gh workflow run deploy.yml
-          else
+          if git diff --cached --quiet; then
             echo "Aucun changement aujourd'hui."
+            exit 0
           fi
+          git commit -m "data: rafraîchissement quotidien $(date -u +%F)"
+
+          # la branche a pu avancer pendant les ~10 min de la passe : on rebase et on réessaie
+          pushed=0
+          for attempt in 1 2 3; do
+            if git push origin "HEAD:${GITHUB_REF_NAME}"; then pushed=1; break; fi
+            echo "Push refusé (essai ${attempt}/3) : rebase sur origin/${GITHUB_REF_NAME}"
+            git fetch origin "${GITHUB_REF_NAME}"
+            git rebase FETCH_HEAD
+          done
+          if [ "$pushed" != 1 ]; then
+            echo "::error::Push impossible après 3 essais"
+            exit 1
+          fi
+
+          # Le site n'est publié que depuis la branche par défaut.
+          if [ "${GITHUB_REF_NAME}" != "${DEFAULT_BRANCH}" ]; then
+            echo "Branche ${GITHUB_REF_NAME} : données poussées, pas de déploiement."
+            exit 0
+          fi
+
+          # Un push fait par GITHUB_TOKEN ne déclenche pas les autres workflows : on lance le
+          # déploiement explicitement, puis on attend son verdict — sinon un déploiement en
+          # échec passerait inaperçu (personne n'est notifié d'un run lancé par le bot).
+          since=$(date -u -d '30 seconds ago' +%Y-%m-%dT%H:%M:%SZ) # marge : horloges du runner et de l'API
+          gh workflow run deploy.yml --ref "${DEFAULT_BRANCH}"
+          runs="repos/${GITHUB_REPOSITORY}/actions/workflows/deploy.yml/runs?event=workflow_dispatch&per_page=5"
+          run_id=""
+          for i in $(seq 1 12); do
+            sleep 5
+            run_id=$(gh api "$runs" --jq "[.workflow_runs[] | select(.created_at >= \"${since}\")][0].id // empty" || true)
+            if [ -n "$run_id" ]; then break; fi
+          done
+          if [ -z "$run_id" ]; then
+            echo "::error::Déploiement introuvable une minute après son lancement"
+            exit 1
+          fi
+          echo "Déploiement lancé : run ${run_id}"
+          verdict=""
+          for i in $(seq 1 60); do
+            sleep 10
+            verdict=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}" --jq 'if .status == "completed" then .conclusion else "" end' || true)
+            if [ -n "$verdict" ]; then break; fi
+          done
+          case "$verdict" in
+            success) echo "Déploiement réussi." ;;
+            cancelled|skipped) echo "::warning::Déploiement ${verdict} (remplacé par un déploiement plus récent ?)" ;;
+            "") echo "::error::Déploiement toujours en cours après 10 min (run ${run_id})"; exit 1 ;;
+            *) echo "::error::Déploiement en échec : ${verdict} (run ${run_id})"; exit 1 ;;
+          esac
         env:
           GH_TOKEN: ${{ github.token }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
