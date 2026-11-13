@@ -2,7 +2,7 @@
   "version": 0.6,
   "generator": "Overpass API 0.7.62.11 87bfad18",
   "osm3s": {
-    "timestamp_osm_base": "2026-11-11T12:01:57Z",
+    "timestamp_osm_base": "2026-11-13T15:05:06Z",
     "copyright": "The data included in this document is from www.openstreetmap.org. The data is made available under ODbL."
   },
   "elements": [
@@ -443,6 +443,22 @@
     "tourism": "artwork",
     "website": "https://space-invaders.com/",
     "wikimedia_commons": "File:Space invader PRP 05.jpg"
+  }
+},
+{
+  "type": "node",
+  "id": 1375940095,
+  "lat": 48.1978726,
+  "lon": 16.3646943,
+  "tags": {
+    "artist:wikidata": "Q1671666",
+    "artist_name": "Invader",
+    "artwork_subject": "street_art",
+    "artwork_type": "mural",
+    "ref": "WN_07",
+    "tourism": "artwork",
+    "website": "https://space-invaders.com/",
+    "wikimedia_commons": "File:Space Invader, Schleifmühlgasse 18, 1040 Wien.jpg"
   }
 },
 {
@@ -12027,6 +12043,21 @@
     "support": "wall",
     "tourism": "artwork",
     "wikimedia_commons": "File:Invader2distant (CM).jpg"
+  }
+},
+{
+  "type": "node",
+  "id": 14369764346,
+  "lat": 48.1980726,
+  "lon": 16.3505429,
+  "tags": {
+    "artist:wikidata": "Q1671666",
+    "artist_name": "Invader",
+    "artwork_subject": "street_art",
+    "artwork_type": "mosaic",
+    "ref": "WN_33",
+    "tourism": "artwork",
+    "website": "https://space-invaders.com/"
   }
 }
 
