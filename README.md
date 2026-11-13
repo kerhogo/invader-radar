@@ -45,6 +45,17 @@ générées à la main : `git pull --rebase`, puis une passe Spotter du jour.
 `npm run data:check` vérifie les invariants des données générées ; avec `FI_UID=<uid>`, il les
 croise aussi avec ta galerie FlashInvaders.
 
+Les polygones de `public/data/zones/` (sous-découpages et contours de ville) ne sont pas
+régénérés par la CI : ils se produisent à la main et se committent.
+
+```bash
+node scripts/fetch-zones.mjs               # sous-découpages des villes (Overpass)
+node scripts/fetch-zones.mjs --outlines    # contour des villes sans sous-découpage (Nominatim)
+```
+
+Quand une nouvelle ville reçoit ses premières positions, le run quotidien le signale par un
+avertissement : il suffit alors de lancer la seconde commande et de committer le fichier créé.
+
 ### Quand le rafraîchissement échoue
 
 Le pipeline préfère s'arrêter plutôt que publier des données partielles ; les données de la
@@ -62,7 +73,7 @@ rétrécit* (en local : `--allow-missing` pour `fetch-spotter`, `--allow-shrink`
 | Source | Rôle |
 |---|---|
 | [Space Invaders World Database](https://github.com/goguelnikov/SpaceInvaders) | socle coordonnées/points (communautaire) |
-| [OpenStreetMap](https://www.openstreetmap.org/copyright) via Overpass (© contributeurs OSM, ODbL) | nouveautés, coordonnées manquantes, signaux « intérieur », limites administratives |
+| [OpenStreetMap](https://www.openstreetmap.org/copyright) via Overpass et Nominatim (© contributeurs OSM, ODbL) | nouveautés, coordonnées manquantes, signaux « intérieur », limites administratives et contours de ville |
 | [Invader Spotter](https://www.invader-spotter.art/) | statuts à jour (OK/dégradé/détruit/caché), référentiel officiel des villes |
 | [Open Data Paris](https://opendata.paris.fr) (ODbL) | 80 quartiers + 20 arrondissements |
 | API FlashInvaders | progression du joueur, dénominateurs officiels |
@@ -76,6 +87,8 @@ si tu ne veux pas te spoiler** — l'anti-spoiler est garanti par l'interface, p
 ## Anti-spoiler par design
 
 - Jamais de marqueur individuel sur la carte (zoom plafonné, agrégats par zone uniquement).
+  Une ville sans sous-découpage est représentée au zoom par son contour, pas par une bulle
+  posée au milieu de ses mosaïques.
 - Radar = intensité (distance) sans direction.
 - Changelog au niveau quartier, jamais à l'adresse.
 

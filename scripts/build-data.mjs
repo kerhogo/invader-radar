@@ -54,6 +54,8 @@ const SPOTTER_MAX_AGE_DAYS = 2;
 const SPOTTER_MIN_SHARE = 0.9;
 /** Écart SIWD ↔ OSM au-delà duquel une position mérite un arbitrage manuel (overrides.json). */
 const OSM_GAP_M = 100;
+/** Distance minimale entre la bulle d'une ville sans découpage ni contour et ses mosaïques. */
+const BUBBLE_MIN_DISTANCE_M = 300;
 /** Part des invaders publiés qui peut disparaître d'une génération à l'autre sans --allow-shrink. */
 const MAX_GONE_SHARE = 0.005;
 
@@ -127,7 +129,7 @@ const COUNTRY_INFO = (() => {
   add("AMS NOO RTD", "Pays-Bas", "🇳🇱", "Europe");
   add("FAO PRT2", "Portugal", "🇵🇹", "Europe");
   add("LJU", "Slovénie", "🇸🇮", "Europe");
-  add("HALM VSB STK", "Suède", "🇸🇪", "Europe");
+  add("HALM VSB STK LAP", "Suède", "🇸🇪", "Europe");
   add("ANZR BSL BRN GNV LSN", "Suisse", "🇨🇭", "Europe");
   add("GRU", "Bosnie-Herzégovine", "🇧🇦", "Europe");
   add("IST", "Turquie", "🇹🇷", "Europe");
@@ -589,6 +591,35 @@ async function main() {
     console.log(`Zonage ${code} : ${n} invaders affectés`);
   }
 
+  // Villes sans sous-découpage : contour de la ville (zones/CODE-outline.geojson, généré par
+  // fetch-zones.mjs --outlines). La carte l'affiche au zoom à la place d'une bulle, et son centre
+  // remplace la moyenne des positions des invaders — qui, pour une ville de quelques mosaïques,
+  // revenait à publier un repère posé dessus.
+  const outlineCenters = new Map();
+  for (const file of zoneFiles.filter(f => f.endsWith("-outline.geojson"))) {
+    const code = file.split("-")[0];
+    if (zonedCities.has(code)) continue;
+    const geom = (await readJsonIfExists(join(OUT, "zones", file)))?.features?.[0]?.geometry;
+    const rings = geom?.type === "Polygon" ? [geom.coordinates[0]]
+      : geom?.type === "MultiPolygon" ? geom.coordinates.map(p => p[0]) : [];
+    if (!rings.length) throw new Error(`${file} : contour sans polygone`);
+    // centre de l'emprise du plus grand polygone (un territoire lointain ne doit pas le déporter)
+    let best = null;
+    for (const ring of rings) {
+      const xs = ring.map(p => p[0]), ys = ring.map(p => p[1]);
+      const b = { minX: Math.min(...xs), maxX: Math.max(...xs), minY: Math.min(...ys), maxY: Math.max(...ys) };
+      b.area = (b.maxX - b.minX) * (b.maxY - b.minY);
+      if (!best || b.area > best.area) best = b;
+    }
+    outlineCenters.set(code, {
+      lat: Math.round(((best.minY + best.maxY) / 2) * 1e5) / 1e5,
+      lng: Math.round(((best.minX + best.maxX) / 2) * 1e5) / 1e5,
+      // demi-diagonale de l'emprise, en km : la carte charge le contour dès qu'on en approche
+      reach: Math.ceil(distanceM(best.minY, best.minX, best.maxY, best.maxX) / 2000)
+    });
+  }
+  if (outlineCenters.size) console.log(`Contours de ville : ${outlineCenters.size}`);
+
   // Référentiel villes : noms + dénominateurs officiels via Invader Spotter,
   // repli sur la table curée. Seules les villes de l'univers officiel existent ici.
   const cities = {};
@@ -611,16 +642,30 @@ async function main() {
     const avg = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0;
     if (!COUNTRY_INFO[code]) noCountry.push(code);
     const geo = COUNTRY_INFO[code] ?? { country: "Ailleurs", flag: "🌍", continent: "Ailleurs" };
+    const outline = outlineCenters.get(code);
+    let lat = outline ? outline.lat : Math.round(avg(c.lats) * 1e5) / 1e5;
+    const lng = outline ? outline.lng : Math.round(avg(c.lngs) * 1e5) / 1e5;
+    if (!outline && !zonedCities.has(code) && c.lats.length) {
+      // Ni découpage ni contour (ville nouvelle, contour pas encore généré) : sa bulle reste affichée
+      // au zoom. Posée au milieu de quelques mosaïques, elle en désignerait une : on l'en écarte,
+      // en attendant le contour.
+      const tooClose = () => c.lats.some((la, k) => distanceM(lat, lng, la, c.lngs[k]) < BUBBLE_MIN_DISTANCE_M);
+      if (tooClose()) {
+        for (let step = 0; step < 40 && tooClose(); step++) lat = Math.round((lat + 0.004) * 1e5) / 1e5;
+        warn(`${code} : ni découpage ni contour, bulle écartée des mosaïques — lancer « node scripts/fetch-zones.mjs --outlines --city=${code} »`);
+      }
+    }
     citiesOut[code] = {
       name: ref[code]?.name ?? CITY_NAMES[code] ?? code,
-      lat: Math.round(avg(c.lats) * 1e5) / 1e5,
-      lng: Math.round(avg(c.lngs) * 1e5) / 1e5,
+      lat,
+      lng,
       count: c.count,
       flag: geo.flag,
       country: geo.country,
       continent: geo.continent,
       ...(ref[code]?.official ? { official: ref[code].official } : {}),
-      ...(zonedCities.has(code) ? { zones: true } : {})
+      ...(zonedCities.has(code) ? { zones: true } : {}),
+      ...(outline ? { outline: true, reach: outline.reach } : {})
     };
   }
 

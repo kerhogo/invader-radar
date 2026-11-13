@@ -2,7 +2,7 @@ import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { state, on } from "./state";
 import { cityStats, zoneStats, loadZones } from "./data";
-import { haversine } from "./geo";
+import { haversine, pointInGeometry } from "./geo";
 import { fmt, escapeHtml } from "./dashboard";
 
 const BASE_STYLE = "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json";
@@ -32,7 +32,49 @@ export function focusCity(code: string): void {
   const info = state.dataset?.cities[code];
   if (!info) return;
   if (!map || !ready) { pendingFocus = code; return; }
+  if (info.outline) { void fitOutline(code); return; }
+  if (!info.lat && !info.lng) return; // aucune position connue pour cette ville
   map.flyTo({ center: [info.lng, info.lat], zoom: info.zones ? 10.8 : 12.3 });
+}
+
+/** Cadre la carte sur le contour d'une ville sans sous-découpage. */
+async function fitOutline(code: string): Promise<void> {
+  const gj = await loadZones(`${code}-outline.geojson`);
+  const info = state.dataset?.cities[code];
+  if (!map || !info) return;
+  void ensureShape(code); // le contour s'affiche même si son centre reste hors champ
+  map.resize(); // la vue vient peut-être d'être réaffichée : le cadrage se calcule sur sa taille réelle
+  const bounds = new maplibregl.LngLatBounds();
+  const walk = (c: any): void => { if (typeof c[0] === "number") bounds.extend(c as [number, number]); else c.forEach(walk); };
+  for (const f of gj?.features ?? []) walk(f.geometry.coordinates);
+  const camera = bounds.isEmpty() ? undefined : map.cameraForBounds(bounds, { padding: 48, maxZoom: 13 });
+  const minZoom = Z_BUBBLE_MAX + 0.3; // en deçà, c'est la bulle qui s'affiche, pas le contour
+  if (camera && camera.zoom !== undefined && camera.zoom >= minZoom) {
+    map.flyTo({ center: camera.center, zoom: camera.zoom });
+    return;
+  }
+  // contour trop étendu pour tenir à l'écran (une région entière) : on vise son étiquette
+  const label = gj?.features?.[0] ? labelPoint(gj.features[0].geometry, true) : null;
+  map.flyTo({ center: label ?? [info.lng, info.lat], zoom: minZoom });
+}
+
+/** Point d'étiquette d'un polygone : moyenne des sommets de son premier anneau — ou, pour un
+    contour de ville (`largest`), de son plus grand morceau, pour ne pas viser un îlot. */
+function labelPoint(geometry: GeoJSON.Geometry, largest = false): [number, number] | null {
+  const rings: [number, number][][] =
+    geometry.type === "Polygon" ? [(geometry.coordinates as any)[0]]
+    : geometry.type === "MultiPolygon" ? (geometry.coordinates as any).map((p: any) => p[0]) : [];
+  if (!rings.length) return null;
+  const ring = largest ? rings.reduce((a, b) => (b.length > a.length ? b : a)) : rings[0];
+  let sx = 0, sy = 0;
+  for (const [x, y] of ring) { sx += x; sy += y; }
+  const n = Math.max(1, ring.length);
+  const mean: [number, number] = [sx / n, sy / n];
+  if (!largest || pointInGeometry(mean[0], mean[1], { type: "Polygon", coordinates: [ring] })) return mean;
+  // contour concave (une baie, un croissant) : la moyenne tombe dehors — centre de l'emprise à la place
+  const xs = ring.map(p => p[0]), ys = ring.map(p => p[1]);
+  const box: [number, number] = [(Math.min(...xs) + Math.max(...xs)) / 2, (Math.min(...ys) + Math.max(...ys)) / 2];
+  return pointInGeometry(box[0], box[1], { type: "Polygon", coordinates: [ring] }) ? box : mean;
 }
 
 export function show(): void {
@@ -163,8 +205,9 @@ function citiesGeoJSON(): GeoJSON.FeatureCollection {
         label: `${c.foundTotal}/${denom}`,
         pct: denom > 0 ? Math.min(1, c.foundTotal / denom) : 0,
         size: Math.sqrt(Math.max(4, c.active)),
-        // les villes avec sous-découpage cèdent la place à la choroplèthe au zoom
-        hasZones: !!state.dataset?.cities[c.code]?.zones
+        // au zoom, la bulle cède la place à la choroplèthe (ville découpée) ou au contour de la ville
+        hasZones: !!state.dataset?.cities[c.code]?.zones,
+        hasShape: !!(state.dataset?.cities[c.code]?.zones || state.dataset?.cities[c.code]?.outline)
       }
     });
   }
@@ -207,15 +250,15 @@ function addCities(): void {
     layout: labelLayout(),
     paint: { "text-color": TEXT_COLOR, "text-halo-color": HALO_COLOR, "text-halo-width": 1.4 }
   });
-  // Zoom rapproché : les villes SANS sous-découpage gardent leur bulle
+  // Zoom rapproché : seules les villes sans découpage NI contour gardent leur bulle
   map.addLayer({
     id: "cities-circle-close", type: "circle", source: "cities", minzoom: Z_BUBBLE_MAX,
-    filter: ["!", ["get", "hasZones"]],
+    filter: ["!", ["get", "hasShape"]],
     paint: circlePaint()
   });
   map.addLayer({
     id: "cities-label-close", type: "symbol", source: "cities", minzoom: Z_BUBBLE_MAX,
-    filter: ["!", ["get", "hasZones"]],
+    filter: ["!", ["get", "hasShape"]],
     layout: labelLayout(),
     paint: { "text-color": TEXT_COLOR, "text-halo-color": HALO_COLOR, "text-halo-width": 1.4 }
   });
@@ -224,19 +267,25 @@ function addCities(): void {
     map.on("click", layerId, ev => {
       const p = ev.features?.[0]?.properties as any;
       if (!p) return;
-      openSheet(String(p.name),
-        `<div class="stat-row">
-           <div class="stat ok"><b>${fmt(Number(p.found))}</b><span>flashés</span></div>
-           <div class="stat accent"><b>${fmt(Math.max(0, Number(p.active) - Number(p.found)))}</b><span>restants localisés</span></div>
-         </div>
-         ${p.hasZones ? `<p class="hint mt">Zoome pour le détail par zone.</p>` : ""}`);
+      openCitySheet(p);
       if (Number(map!.getZoom()) < Z_BUBBLE_MAX) {
-        map!.flyTo({ center: (ev.features![0].geometry as any).coordinates, zoom: p.hasZones ? 10.5 : 12.3 });
+        if (p.hasShape && !p.hasZones) void fitOutline(String(p.code));
+        else map!.flyTo({ center: (ev.features![0].geometry as any).coordinates, zoom: p.hasZones ? 10.5 : 12.3 });
       }
     });
     map.on("mouseenter", layerId, () => { map!.getCanvas().style.cursor = "pointer"; });
     map.on("mouseleave", layerId, () => { map!.getCanvas().style.cursor = ""; });
   }
+}
+
+/** Fiche d'une ville (bulle ou contour) : mêmes chiffres dans les deux cas. */
+function openCitySheet(p: any): void {
+  openSheet(String(p.name),
+    `<div class="stat-row">
+       <div class="stat ok"><b>${fmt(Number(p.found))}</b><span>flashés</span></div>
+       <div class="stat accent"><b>${fmt(Math.max(0, Number(p.active) - Number(p.found)))}</b><span>restants localisés</span></div>
+     </div>
+     ${p.hasZones ? `<p class="hint mt">Zoome pour le détail par zone.</p>` : ""}`);
 }
 
 function updateCities(): void {
@@ -268,22 +317,14 @@ async function zoneGeoJSON(code: string, level: "z1" | "z2"): Promise<GeoJSON.Fe
   return { type: "FeatureCollection", features: feats };
 }
 
-function centroids(fc: GeoJSON.FeatureCollection): GeoJSON.FeatureCollection {
+function centroids(fc: GeoJSON.FeatureCollection, largest = false): GeoJSON.FeatureCollection {
   const feats = fc.features
-    .filter(f => (f.properties as any).active > 0)
-    .map(f => {
-      const ring: [number, number][] =
-        f.geometry.type === "Polygon" ? (f.geometry.coordinates as any)[0]
-        : f.geometry.type === "MultiPolygon" ? (f.geometry.coordinates as any)[0][0] : [];
-      let sx = 0, sy = 0;
-      for (const [x, y] of ring) { sx += x; sy += y; }
-      const n = Math.max(1, ring.length);
-      return {
-        type: "Feature",
-        geometry: { type: "Point", coordinates: [sx / n, sy / n] },
-        properties: f.properties
-      } as GeoJSON.Feature;
-    });
+    .filter(f => (f.properties as any).label)
+    .map(f => ({
+      type: "Feature",
+      geometry: { type: "Point", coordinates: labelPoint(f.geometry, largest) ?? [0, 0] },
+      properties: f.properties
+    }) as GeoJSON.Feature);
   return { type: "FeatureCollection", features: feats };
 }
 
@@ -305,19 +346,123 @@ async function loadVisibleZones(): Promise<void> {
   const c = map.getCenter();
   const pending: Array<Promise<void>> = [];
   for (const [code, info] of Object.entries(state.dataset.cities)) {
-    if (!info.zones || loadedZones.has(code) || loadingZones.has(code)) continue;
-    // dans le cadre, ou assez près du centre (cas d'un zoom sur un quartier,
-    // où le point « centre-ville » peut être hors champ)
+    if (!(info.zones || info.outline)) continue;
+    // dans le cadre, ou assez près du centre (cas d'un zoom sur un quartier, où le point
+    // « centre-ville » peut être hors champ) — un contour étendu se charge d'aussi loin qu'il porte
     const near = bounds.contains([info.lng, info.lat])
-      || haversine(c.lat, c.lng, info.lat, info.lng) < 25000;
+      || haversine(c.lat, c.lng, info.lat, info.lng) < Math.max(25000, (info.reach ?? 0) * 1000);
     if (!near) continue;
-    loadingZones.add(code);
-    pending.push(addCityZones(code).then(() => {
-      loadedZones.add(code);
-      loadingZones.delete(code);
-    }).catch(() => { loadingZones.delete(code); }));
+    const loading = ensureShape(code);
+    if (loading) pending.push(loading);
   }
   await Promise.all(pending);
+}
+
+/** Charge une fois les polygones d'une ville (zones, ou contour) ; null si c'est fait ou en cours. */
+function ensureShape(code: string): Promise<void> | null {
+  const info = state.dataset?.cities[code];
+  if (!info || !(info.zones || info.outline) || loadedZones.has(code) || loadingZones.has(code)) return null;
+  loadingZones.add(code);
+  const job: Promise<boolean> = info.zones ? addCityZones(code).then(() => true) : addCityOutline(code);
+  return job.then(done => {
+    if (done) loadedZones.add(code); // contour non chargé (réseau) : nouvel essai au prochain déplacement
+    loadingZones.delete(code);
+  }).catch(() => { loadingZones.delete(code); });
+}
+
+/** Couches d'un jeu de polygones : aplat coloré selon l'avancement, liseré, étiquette au centre. */
+function addShapeLayers(src: string, data: GeoJSON.FeatureCollection, minz: number, maxz: number, largest = false): void {
+  if (!map) return;
+  map.addSource(src, { type: "geojson", data });
+  map.addSource(`${src}-pts`, { type: "geojson", data: centroids(data, largest) });
+
+  map.addLayer({
+    id: `${src}-fill`,
+    type: "fill",
+    source: src,
+    minzoom: minz,
+    maxzoom: maxz,
+    paint: {
+      "fill-color": COLOR_EXPR,
+      "fill-opacity": ["case", ["<", ["get", "pct"], 0], 0.05, 0.34]
+    }
+  });
+  map.addLayer({
+    id: `${src}-line`,
+    type: "line",
+    source: src,
+    minzoom: minz,
+    maxzoom: maxz,
+    paint: {
+      "line-color": "rgba(160, 195, 245, 0.4)",
+      "line-width": 1
+    }
+  });
+  map.addLayer({
+    id: `${src}-label`,
+    type: "symbol",
+    source: `${src}-pts`,
+    minzoom: minz,
+    maxzoom: maxz,
+    layout: {
+      "text-field": ["format",
+        ["get", "name"], { "font-scale": 0.78 }, "\n", {},
+        ["get", "label"], { "font-scale": 1.1 }],
+      "text-font": ["Open Sans Bold"],
+      "text-size": 13
+    },
+    paint: {
+      "text-color": TEXT_COLOR,
+      "text-halo-color": HALO_COLOR,
+      "text-halo-width": 1.5
+    }
+  });
+  map.on("mouseenter", `${src}-fill`, () => { map!.getCanvas().style.cursor = "pointer"; });
+  map.on("mouseleave", `${src}-fill`, () => { map!.getCanvas().style.cursor = ""; });
+}
+
+/* ---------- Contour des villes sans sous-découpage ----------
+   Au zoom, le contour de la ville remplace sa bulle : même rendu qu'une zone, avec les chiffres
+   de la ville entière. Une bulle posée au milieu des invaders d'une ville qui n'en compte que
+   quelques-uns en donnerait l'emplacement. */
+
+const outlineSources = new Map<string, string>(); // source → code ville
+
+async function outlineGeoJSON(code: string): Promise<GeoJSON.FeatureCollection | null> {
+  const gj = await loadZones(`${code}-outline.geojson`);
+  const c = cityStats().find(s => s.code === code);
+  if (!gj || !c) return null;
+  const denom = c.official ?? c.active;
+  const shown = c.active + c.foundTotal > 0;
+  const feats = (gj.features as GeoJSON.Feature[]).map(f => ({
+    ...f,
+    properties: {
+      code,
+      name: c.name,
+      found: c.foundTotal,
+      active: c.active,
+      label: shown ? `${c.foundTotal}/${denom}` : "",
+      pct: shown && denom > 0 ? Math.min(1, c.foundTotal / denom) : -1
+    }
+  }));
+  return { type: "FeatureCollection", features: feats };
+}
+
+async function addCityOutline(code: string): Promise<boolean> {
+  const data = await outlineGeoJSON(code);
+  if (!map || !data) return false;
+  const src = `outline-${code}`;
+  addShapeLayers(src, data, Z_BUBBLE_MAX, 24, true);
+  outlineSources.set(src, code);
+  map.on("click", `${src}-fill`, ev => {
+    const p = ev.features?.[0]?.properties as any;
+    if (!p || !p.label) return; // rien à montrer pour cette ville
+    // la zone d'une ville découpée voisine, plus fine, garde la main si elle est sous le doigt
+    const zoneHere = map!.queryRenderedFeatures(ev.point).some(f =>
+      f.layer.id.startsWith("zones-") && f.layer.id.endsWith("-fill") && Number((f.properties as any)?.active) > 0);
+    if (!zoneHere) openCitySheet(p);
+  });
+  return true;
 }
 
 async function addCityZones(code: string): Promise<void> {
@@ -327,50 +472,7 @@ async function addCityZones(code: string): Promise<void> {
       const data = await zoneGeoJSON(code, level);
       if (!data) continue;
       const src = `zones-${code}-${level}`;
-      map.addSource(src, { type: "geojson", data });
-      map.addSource(`${src}-pts`, { type: "geojson", data: centroids(data) });
-
-      map.addLayer({
-        id: `${src}-fill`,
-        type: "fill",
-        source: src,
-        minzoom: minz,
-        maxzoom: maxz,
-        paint: {
-          "fill-color": COLOR_EXPR,
-          "fill-opacity": ["case", ["<", ["get", "pct"], 0], 0.05, 0.34]
-        }
-      });
-      map.addLayer({
-        id: `${src}-line`,
-        type: "line",
-        source: src,
-        minzoom: minz,
-        maxzoom: maxz,
-        paint: {
-          "line-color": "rgba(160, 195, 245, 0.4)",
-          "line-width": 1
-        }
-      });
-      map.addLayer({
-        id: `${src}-label`,
-        type: "symbol",
-        source: `${src}-pts`,
-        minzoom: minz,
-        maxzoom: maxz,
-        layout: {
-          "text-field": ["format",
-            ["get", "name"], { "font-scale": 0.78 }, "\n", {},
-            ["get", "label"], { "font-scale": 1.1 }],
-          "text-font": ["Open Sans Bold"],
-          "text-size": 13
-        },
-        paint: {
-          "text-color": TEXT_COLOR,
-          "text-halo-color": HALO_COLOR,
-          "text-halo-width": 1.5
-        }
-      });
+      addShapeLayers(src, data, minz, maxz);
 
       zoneLayers.add(src);
       map.on("click", `${src}-fill`, ev => {
@@ -385,21 +487,22 @@ async function addCityZones(code: string): Promise<void> {
            </div>
            ${left === 0 ? `<p class="hint mt center">Zone complétée — bravo ! 🎉</p>` : ""}`);
       });
-      map.on("mouseenter", `${src}-fill`, () => { map!.getCanvas().style.cursor = "pointer"; });
-      map.on("mouseleave", `${src}-fill`, () => { map!.getCanvas().style.cursor = ""; });
     }
   }
 }
 
 async function updateZones(): Promise<void> {
   if (!map) return;
+  const refresh = (src: string, data: GeoJSON.FeatureCollection | null, largest = false): void => {
+    if (!data) return;
+    (map!.getSource(src) as maplibregl.GeoJSONSource | undefined)?.setData(data);
+    (map!.getSource(`${src}-pts`) as maplibregl.GeoJSONSource | undefined)?.setData(centroids(data, largest));
+  };
   for (const src of zoneLayers) {
     const [, code, level] = src.split("-");
-    const data = await zoneGeoJSON(code, level as "z1" | "z2");
-    if (!data) continue;
-    (map.getSource(src) as maplibregl.GeoJSONSource | undefined)?.setData(data);
-    (map.getSource(`${src}-pts`) as maplibregl.GeoJSONSource | undefined)?.setData(centroids(data));
+    refresh(src, await zoneGeoJSON(code, level as "z1" | "z2"));
   }
+  for (const [src, code] of outlineSources) refresh(src, await outlineGeoJSON(code), true);
 }
 
 /* ---------- Fiche zone ---------- */

@@ -29,15 +29,21 @@ export async function loadChangelog(): Promise<ChangeEntry[]> {
 }
 
 const zoneCache = new Map<string, any>();
-/** GeoJSON des zones d'une ville (null si la ville n'a pas de découpage fin). */
+/**
+ * GeoJSON des zones d'une ville (null si le fichier n'existe pas ou n'a pas pu être chargé).
+ * Seule l'absence réelle du fichier (404) est mémorisée : après une coupure réseau ou une
+ * erreur passagère, l'appel suivant réessaie.
+ */
 export async function loadZones(file: string): Promise<any | null> {
   if (zoneCache.has(file)) return zoneCache.get(file);
   try {
-    const gj = await getJSON<any>(`data/zones/${file}`);
+    const res = await fetch(`${base}data/zones/${file}`);
+    if (res.status === 404) { zoneCache.set(file, null); return null; }
+    if (!res.ok) return null;
+    const gj = await res.json();
     zoneCache.set(file, gj);
     return gj;
   } catch {
-    zoneCache.set(file, null);
     return null;
   }
 }

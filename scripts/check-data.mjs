@@ -12,7 +12,7 @@
 import { readdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { ID_RE, readJsonIfExists } from "./lib/pipeline.mjs";
+import { ID_RE, distanceM, pointInGeometry, readJsonIfExists, warn } from "./lib/pipeline.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const DATA = join(ROOT, "public", "data");
@@ -140,6 +140,41 @@ check("PA-z2 : 20 arrondissements + communes de banlieue", (z2?.length ?? 0) >= 
 const paArrondissements = new Set(pa.filter(i => i.z2).map(i => i.z2));
 check("Arrondissements de Paris distincts (20 + communes de banlieue)",
   paArrondissements.size >= 20 && paArrondissements.size <= (z2?.length ?? 0), String(paArrondissements.size));
+
+/* ---------- Contours des villes sans sous-découpage (anti-spoiler) ---------- */
+
+// Au zoom, la carte affiche le contour de la ville à la place d'une bulle posée au milieu de ses
+// invaders. Le contour doit exister et rester assez grand pour ne désigner aucun emplacement.
+const OUTLINE_MIN_DIAGONAL_M = 2000;
+const outlineProblems = [];
+const outlinesToRefresh = [];
+for (const code of cityCodes.filter(c => ds.cities[c].outline)) {
+  const file = `${code}-outline.geojson`;
+  const geom = zoneFiles.has(file) ? (await readJsonIfExists(join(DATA, "zones", file)))?.features?.[0]?.geometry : null;
+  if (!geom || !/Polygon/.test(geom.type ?? "")) { outlineProblems.push(`${file} manquant ou sans polygone`); continue; }
+  if (ds.cities[code].zones) outlineProblems.push(`${code} : contour et sous-découpage à la fois`);
+  // chaque morceau du contour compte : un îlot minuscule désignerait ce qu'il entoure
+  const pieces = (geom.type === "Polygon" ? [geom.coordinates] : geom.coordinates).map(poly => {
+    const lngs = poly[0].map(p => p[0]), lats = poly[0].map(p => p[1]);
+    return distanceM(Math.min(...lats), Math.min(...lngs), Math.max(...lats), Math.max(...lngs));
+  });
+  const smallest = Math.min(...pieces);
+  if (!(smallest >= OUTLINE_MIN_DIAGONAL_M)) outlineProblems.push(`${code} : morceau de contour de ${Math.round(smallest)} m seulement`);
+  const cityLocated = items.filter(i => i.city === code && i.lat !== undefined);
+  const inside = cityLocated.filter(i => pointInGeometry(i.lng, i.lat, geom)).length;
+  // fetch-zones accepte un contour qui contient la majorité des invaders (ville + communes voisines)
+  if (cityLocated.length && inside / cityLocated.length < 0.6) outlinesToRefresh.push(`${code} ${inside}/${cityLocated.length}`);
+}
+check("Contours de ville présents et assez grands", outlineProblems.length === 0, outlineProblems.slice(0, 4).join(" ; "));
+if (outlinesToRefresh.length) warn(`contours à régénérer (fetch-zones.mjs --outlines --force) : la majorité des invaders en est sortie — ${outlinesToRefresh.join(", ")}`);
+// Villes qui gardent une bulle au zoom (ni découpage ni contour) : elle ne doit pas tomber sur un invader
+const exposed = cityCodes.filter(code => {
+  const c = ds.cities[code];
+  if (c.zones || c.outline || (!c.lat && !c.lng)) return false;
+  return items.some(i => i.city === code && activeDefault(i) && i.lat !== undefined && distanceM(c.lat, c.lng, i.lat, i.lng) < 150);
+});
+if (exposed.length) warn(`villes sans contour dont la bulle est à moins de 150 m d'un invader actif : ${exposed.join(", ")} — lancer fetch-zones.mjs --outlines`);
+else console.log("  (aucune ville sans contour dont la bulle tombe sur un invader)");
 
 /* ---------- Actualités et métadonnées ---------- */
 

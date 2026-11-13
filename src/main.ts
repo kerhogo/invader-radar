@@ -187,6 +187,24 @@ on("dataset", () => {
 
 boot();
 
+/* Après un déploiement, une page restée sur l'ancienne version peut demander un morceau de
+   code qui n'existe plus (vue jamais ouverte, donc absente du cache) : on recharge une fois
+   pour repartir sur la version en ligne. Jamais pendant une chasse, ni hors ligne, ni deux fois
+   de suite. */
+addEventListener("vite:preloadError", ev => {
+  // hors ligne, recharger ne ramènerait rien : on garde l'app telle qu'elle est en mémoire
+  if (huntModule?.isRunning() || !navigator.onLine) return;
+  const KEY = "ir.reloadedAt";
+  try {
+    if (Date.now() - Number(sessionStorage.getItem(KEY) ?? 0) < 30_000) return;
+    sessionStorage.setItem(KEY, String(Date.now()));
+  } catch {
+    return; // stockage indisponible : pas de garde anti-boucle, donc pas de rechargement
+  }
+  ev.preventDefault();
+  location.reload();
+});
+
 // PWA — service worker (uniquement en build, pas en dev)
 if ("serviceWorker" in navigator && !import.meta.env.DEV) {
   addEventListener("load", () => {

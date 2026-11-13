@@ -130,10 +130,12 @@ function cityDetail(c: CityStats): string {
     }).join("");
   }
 
+  // sans invader localisé ni contour (ex. l'ISS), la ville n'a aucun endroit à montrer sur la carte
+  const onMap = !!(state.dataset?.cities[c.code]?.outline || c.lat || c.lng);
   return `
     <div class="city-detail" data-detail="${c.code}">
       ${body}
-      <button class="btn secondary" data-map-code="${c.code}" style="margin-top:8px;padding:11px">Voir sur la carte</button>
+      ${onMap ? `<button class="btn secondary" data-map-code="${c.code}" style="margin-top:8px;padding:11px">Voir sur la carte</button>` : ""}
     </div>`;
 }
 

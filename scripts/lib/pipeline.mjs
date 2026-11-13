@@ -68,3 +68,19 @@ export function distanceM(lat1, lng1, lat2, lng2) {
     + Math.cos(lat1 * rad) * Math.cos(lat2 * rad) * Math.sin(((lng2 - lng1) * rad) / 2) ** 2;
   return 2 * 6371000 * Math.asin(Math.sqrt(a));
 }
+
+function inRing(lng, lat, ring) {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const [xi, yi] = ring[i];
+    const [xj, yj] = ring[j];
+    if (yi > lat !== yj > lat && lng < ((xj - xi) * (lat - yi)) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+
+/** Le point est-il dans le polygone (ou multi-polygone) GeoJSON, trous exclus ? */
+export function pointInGeometry(lng, lat, geom) {
+  const polys = geom.type === "Polygon" ? [geom.coordinates] : geom.type === "MultiPolygon" ? geom.coordinates : [];
+  return polys.some(poly => inRing(lng, lat, poly[0]) && !poly.slice(1).some(hole => inRing(lng, lat, hole)));
+}

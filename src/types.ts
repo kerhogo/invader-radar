@@ -19,6 +19,8 @@ export interface CityInfo {
   count: number;        // invaders référencés (base fusionnée)
   official?: number;    // dénominateur officiel (référentiel Invader Spotter)
   zones?: boolean;      // true si des polygones zones/<code>-z1/z2.geojson existent
+  outline?: boolean;    // ville sans sous-découpage : contour zones/<code>-outline.geojson (lat/lng = son centre)
+  reach?: number;       // rayon d'emprise du contour, en km
   flag?: string;        // drapeau emoji du pays
   country?: string;
   continent?: string;
