@@ -1,5 +1,5 @@
 {
-"generated":"2026-11-14T11:39:43.080Z",
+"generated":"2026-11-15T12:07:16.226Z",
 "items":[
 {"id":"AIX_01","city":"AIX","lat":43.5285840236,"lng":5.4431859342,"status":"ok","points":10},
 {"id":"AIX_02","city":"AIX","lat":43.5308733553,"lng":5.447449928,"status":"ok","points":10},
@@ -1243,6 +1243,7 @@
 {"id":"LAP_33","city":"LAP","status":"ok","points":40},
 {"id":"LAP_34","city":"LAP","status":"ok","points":50},
 {"id":"LAP_35","city":"LAP","status":"ok","points":30},
+{"id":"LAP_36","city":"LAP","status":"ok","points":0},
 {"id":"LAP_37","city":"LAP","status":"ok","points":30},
 {"id":"LAP_38","city":"LAP","status":"ok","points":20},
 {"id":"LAP_39","city":"LAP","status":"ok","points":50},
@@ -4605,7 +4606,7 @@
 "VRS":{"name":"Versailles","lat":48.80571,"lng":2.12807,"count":42,"flag":"🇫🇷","country":"France","continent":"Europe","official":42,"zones":true},
 "VSB":{"name":"Visby","lat":57.41748,"lng":18.59467,"count":3,"flag":"🇸🇪","country":"Suède","continent":"Europe","official":3,"outline":true,"reach":65},
 "WN":{"name":"Vienna","lat":48.20789,"lng":16.36574,"count":56,"flag":"🇦🇹","country":"Autriche","continent":"Europe","official":56,"zones":true},
-"LAP":{"name":"Lapland","lat":66.98117,"lng":19.77746,"count":81,"flag":"🇸🇪","country":"Suède","continent":"Europe","official":89,"outline":true,"reach":300},
+"LAP":{"name":"Lapland","lat":66.98117,"lng":19.77746,"count":82,"flag":"🇸🇪","country":"Suède","continent":"Europe","official":89,"outline":true,"reach":300},
 "STK":{"name":"Stockholm","lat":59.33377,"lng":17.98038,"count":19,"flag":"🇸🇪","country":"Suède","continent":"Europe","official":19,"outline":true,"reach":18}
 }
 }

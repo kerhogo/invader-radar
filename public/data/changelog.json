@@ -1,5 +1,7 @@
 {
 "entries":[
+{"date":"2026-11-15","type":"new_invader","id":"LAP_36","city":"LAP"},
+{"date":"2026-11-14","type":"spotter_news","text":"Ajout d'un SI de l'invasion de la Laponie : LAP_36"},
 {"date":"2026-11-14","type":"status_change","id":"MLB_11","city":"MLB","zone":"Collingwood","from":"destroyed","to":"ok"},
 {"date":"2026-11-13","type":"spotter_news","text":"Ajout d'un SI de l'invasion de la Laponie : LAP_40. Réactivation de MLB_11, MLB_17 et PRT_08"},
 {"date":"2026-11-13","type":"spotter_news","text":"Ajout d'un SI de l'invasion de la Laponie : LAP_40. Réactivation de MLB_17 et PRT_08"},
