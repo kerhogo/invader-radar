@@ -1,5 +1,5 @@
 {
-"generated":"2026-11-15T12:07:16.226Z",
+"generated":"2026-11-16T12:56:56.691Z",
 "items":[
 {"id":"AIX_01","city":"AIX","lat":43.5285840236,"lng":5.4431859342,"status":"ok","points":10},
 {"id":"AIX_02","city":"AIX","lat":43.5308733553,"lng":5.447449928,"status":"ok","points":10},
@@ -1243,11 +1243,11 @@
 {"id":"LAP_33","city":"LAP","status":"ok","points":40},
 {"id":"LAP_34","city":"LAP","status":"ok","points":50},
 {"id":"LAP_35","city":"LAP","status":"ok","points":30},
-{"id":"LAP_36","city":"LAP","status":"ok","points":0},
+{"id":"LAP_36","city":"LAP","status":"ok","points":30},
 {"id":"LAP_37","city":"LAP","status":"ok","points":30},
 {"id":"LAP_38","city":"LAP","status":"ok","points":20},
 {"id":"LAP_39","city":"LAP","status":"ok","points":50},
-{"id":"LAP_40","city":"LAP","status":"ok","points":0},
+{"id":"LAP_40","city":"LAP","status":"ok","points":30},
 {"id":"LAP_41","city":"LAP","status":"ok","points":40},
 {"id":"LAP_42","city":"LAP","status":"ok","points":30},
 {"id":"LAP_43","city":"LAP","status":"ok","points":30},
