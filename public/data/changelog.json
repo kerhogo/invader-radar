@@ -1,5 +1,12 @@
 {
 "entries":[
+{"date":"2026-11-17","type":"status_change","id":"BGK_03","city":"BGK","zone":"แขวงสีลม","from":"destroyed","to":"ok"},
+{"date":"2026-11-17","type":"status_change","id":"BGK_16","city":"BGK","zone":"แขวงลุมพินี","from":"destroyed","to":"ok"},
+{"date":"2026-11-17","type":"status_change","id":"BGK_21","city":"BGK","zone":"แขวงมักกะสัน","from":"destroyed","to":"ok"},
+{"date":"2026-11-17","type":"status_change","id":"BGK_33","city":"BGK","zone":"แขวงคลองตันเหนือ","from":"destroyed","to":"ok"},
+{"date":"2026-11-17","type":"status_change","id":"BGK_45","city":"BGK","zone":"แขวงป้อมปราบ","from":"destroyed","to":"ok"},
+{"date":"2026-11-17","type":"new_city","city":"BDA"},
+{"date":"2026-11-17","type":"new_invader","id":"BDA_12","city":"BDA"},
 {"date":"2026-11-15","type":"new_invader","id":"LAP_36","city":"LAP"},
 {"date":"2026-11-14","type":"spotter_news","text":"Ajout d'un SI de l'invasion de la Laponie : LAP_36"},
 {"date":"2026-11-14","type":"status_change","id":"MLB_11","city":"MLB","zone":"Collingwood","from":"destroyed","to":"ok"},
