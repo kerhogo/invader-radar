@@ -1,5 +1,14 @@
 {
 "entries":[
+{"date":"2026-11-19","type":"spotter_news","text":"Ajout de plusieurs SI de l'invasion des Bermudes : BDA_01, BDA_21, BDA_22 et BDA_25."},
+{"date":"2026-11-19","type":"status_change","id":"PRT_02","city":"PRT","zone":"Perth","from":"ok","to":"destroyed"},
+{"date":"2026-11-19","type":"new_invader","id":"BDA_01","city":"BDA"},
+{"date":"2026-11-19","type":"new_invader","id":"BDA_21","city":"BDA"},
+{"date":"2026-11-19","type":"new_invader","id":"BDA_22","city":"BDA"},
+{"date":"2026-11-19","type":"new_invader","id":"BDA_25","city":"BDA"},
+{"date":"2026-11-18","type":"spotter_news","text":"BDA_11, BDA_12, BDA_13, BDA_14, BDA_15, BDA_16, BDA_18, BDA_19, BDA_20, BDA_23,"},
+{"date":"2026-11-18","type":"spotter_news","text":"BDA_24, BDA_26, BDA_27, BDA_28, BDA_29, BDA_30, BDA_31, BDA_32, BDA_35, BDA_36,"},
+{"date":"2026-11-18","type":"spotter_news","text":"BDA_37, BDA_38, BDA_40, BDA_41, BDA_42, BDA_44 et BDA_45"},
 {"date":"2026-11-18","type":"spotter_news","text":"Ajout des premiers SI identifiés de l'invasion des Bermudes : BDA_02, BDA_03, BDA_05, BDA_07,"},
 {"date":"2026-11-18","type":"spotter_news","text":"BDA_12, BDA_13, BDA_14, BDA_15, BDA_16, BDA_18, BDA_19, BDA_20, BDA_23, BDA_24,"},
 {"date":"2026-11-18","type":"spotter_news","text":"BDA_26, BDA_27, BDA_28, BDA_29, BDA_30, BDA_31, BDA_32, BDA_35, BDA_36, BDA_37,"},

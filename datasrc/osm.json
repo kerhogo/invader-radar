@@ -699,6 +699,7 @@
 {"type":"node","id":14235846323,"lat":48.8098345,"lon":2.1341671,"tags":{"artist_name":"Invader","artwork_type":"mosaic","description":"Oeuvre VRS_41 d'Invader représentant plusieurs affiches pixélisées, la principale étant un portrait de Louis XIV.","name":"VRS_41","tourism":"artwork"}},
 {"type":"node","id":14312228495,"lat":13.7245194,"lon":100.5490268,"tags":{"artist_name":"Invader","artwork_type":"graffiti","material":"ceramic","name":"BGK_35","tourism":"artwork"}},
 {"type":"node","id":14342669993,"lat":49.7733201,"lon":4.7198013,"tags":{"artist:wikidata":"Q1671666","artist_name":"Invader","artwork_subject":"street_art","artwork_type":"mosaic","note":"Pas sûr qu'il s'agisse d'un Invader officiel, étant donné qu'il n'apparait pas sur le site officiel / Unsure whether an official Invader, as it does not appear on the official website","support":"wall","tourism":"artwork","wikimedia_commons":"File:Invader2distant (CM).jpg"}},
-{"type":"node","id":14369764346,"lat":48.1980726,"lon":16.3505429,"tags":{"artist:wikidata":"Q1671666","artist_name":"Invader","artwork_subject":"street_art","artwork_type":"mosaic","ref":"WN_33","tourism":"artwork","website":"https://space-invaders.com/"}}
+{"type":"node","id":14369764346,"lat":48.1980726,"lon":16.3505429,"tags":{"artist:wikidata":"Q1671666","artist_name":"Invader","artwork_subject":"street_art","artwork_type":"mosaic","ref":"WN_33","tourism":"artwork","website":"https://space-invaders.com/"}},
+{"type":"node","id":14382308992,"lat":48.8476028,"lon":2.4310848,"tags":{"artist_name":"Invader","artwork_type":"mosaic","name":"Invader PA_1341","ref":"PA_1341","tourism":"artwork"}}
 ]
 }

@@ -1,5 +1,5 @@
 {
-"generated":"2026-11-18T13:15:11.153Z",
+"generated":"2026-11-19T13:24:13.951Z",
 "items":[
 {"id":"AIX_01","city":"AIX","lat":43.5285840236,"lng":5.4431859342,"status":"ok","points":10},
 {"id":"AIX_02","city":"AIX","lat":43.5308733553,"lng":5.447449928,"status":"ok","points":10},
@@ -200,6 +200,7 @@
 {"id":"BBO_38","city":"BBO","lat":43.2735741919,"lng":-2.9217008023,"status":"destroyed","points":30,"z2":"Uribarri"},
 {"id":"BBO_39","city":"BBO","lat":43.2601044169,"lng":-2.9305753068,"status":"ok","points":50,"z1":"Abando","z2":"Abando"},
 {"id":"BBO_40","city":"BBO","lat":43.2677890558,"lng":-2.9445656773,"status":"ok","points":30,"z1":"Indautxu","z2":"Abando"},
+{"id":"BDA_01","city":"BDA","status":"ok","points":20},
 {"id":"BDA_02","city":"BDA","status":"ok","points":40},
 {"id":"BDA_03","city":"BDA","status":"ok","points":50},
 {"id":"BDA_05","city":"BDA","status":"ok","points":30},
@@ -213,8 +214,11 @@
 {"id":"BDA_18","city":"BDA","status":"ok","points":50},
 {"id":"BDA_19","city":"BDA","status":"ok","points":30},
 {"id":"BDA_20","city":"BDA","status":"ok","points":30},
+{"id":"BDA_21","city":"BDA","status":"ok","points":40},
+{"id":"BDA_22","city":"BDA","status":"ok","points":30},
 {"id":"BDA_23","city":"BDA","status":"ok","points":40},
 {"id":"BDA_24","city":"BDA","status":"ok","points":20},
+{"id":"BDA_25","city":"BDA","status":"ok","points":30},
 {"id":"BDA_26","city":"BDA","status":"ok","points":50},
 {"id":"BDA_27","city":"BDA","status":"ok","points":40},
 {"id":"BDA_28","city":"BDA","status":"ok","points":40},
@@ -3965,7 +3969,7 @@
 {"id":"PRP_07","city":"PRP","lat":42.6975544184,"lng":2.8926425554,"status":"ok","points":20},
 {"id":"PRP_08","city":"PRP","lat":42.7002969043,"lng":2.8905296388,"status":"ok","points":10},
 {"id":"PRT_01","city":"PRT","lat":-31.8930560348,"lng":115.7563542489,"status":"destroyed","points":10,"z1":"Scarborough"},
-{"id":"PRT_02","city":"PRT","lat":-31.9511603796,"lng":115.8554314925,"status":"ok","points":10,"z1":"Perth"},
+{"id":"PRT_02","city":"PRT","lat":-31.9511603796,"lng":115.8554314925,"status":"destroyed","points":10,"z1":"Perth"},
 {"id":"PRT_03","city":"PRT","lat":-31.9348766283,"lng":115.8720450487,"status":"ok","points":10,"z1":"Mount Lawley"},
 {"id":"PRT_04","city":"PRT","lat":-31.9369397485,"lng":115.8414003782,"status":"ok","points":10,"z1":"Leederville"},
 {"id":"PRT_05","city":"PRT","lat":-31.9521523661,"lng":115.8530267346,"status":"ok","points":10,"z1":"Perth"},
@@ -4637,7 +4641,7 @@
 "VRS":{"name":"Versailles","lat":48.80571,"lng":2.12807,"count":42,"flag":"🇫🇷","country":"France","continent":"Europe","official":42,"zones":true},
 "VSB":{"name":"Visby","lat":57.41748,"lng":18.59467,"count":3,"flag":"🇸🇪","country":"Suède","continent":"Europe","official":3,"outline":true,"reach":65},
 "WN":{"name":"Vienna","lat":48.20789,"lng":16.36574,"count":56,"flag":"🇦🇹","country":"Autriche","continent":"Europe","official":56,"zones":true},
-"BDA":{"name":"Bermuda","lat":0,"lng":0,"count":31,"flag":"🌍","country":"Ailleurs","continent":"Ailleurs","official":47},
+"BDA":{"name":"Bermuda","lat":0,"lng":0,"count":35,"flag":"🌍","country":"Ailleurs","continent":"Ailleurs","official":47},
 "LAP":{"name":"Lapland","lat":66.98117,"lng":19.77746,"count":82,"flag":"🇸🇪","country":"Suède","continent":"Europe","official":89,"outline":true,"reach":300},
 "STK":{"name":"Stockholm","lat":59.33377,"lng":17.98038,"count":19,"flag":"🇸🇪","country":"Suède","continent":"Europe","official":19,"outline":true,"reach":18}
 }
