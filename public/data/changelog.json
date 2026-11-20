@@ -1,5 +1,9 @@
 {
 "entries":[
+{"date":"2026-11-20","type":"spotter_news","text":"Ajout de plusieurs SI de l'invasion des Bermudes : BDA_09, BDA_10 et BDA_34"},
+{"date":"2026-11-20","type":"new_invader","id":"BDA_09","city":"BDA"},
+{"date":"2026-11-20","type":"new_invader","id":"BDA_10","city":"BDA"},
+{"date":"2026-11-20","type":"new_invader","id":"BDA_34","city":"BDA"},
 {"date":"2026-11-19","type":"spotter_news","text":"Ajout de plusieurs SI de l'invasion des Bermudes : BDA_01, BDA_21, BDA_22 et BDA_25."},
 {"date":"2026-11-19","type":"status_change","id":"PRT_02","city":"PRT","zone":"Perth","from":"ok","to":"destroyed"},
 {"date":"2026-11-19","type":"new_invader","id":"BDA_01","city":"BDA"},

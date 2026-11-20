@@ -1,5 +1,5 @@
 {
-"generated":"2026-11-19T13:24:13.951Z",
+"generated":"2026-11-20T13:06:06.748Z",
 "items":[
 {"id":"AIX_01","city":"AIX","lat":43.5285840236,"lng":5.4431859342,"status":"ok","points":10},
 {"id":"AIX_02","city":"AIX","lat":43.5308733553,"lng":5.447449928,"status":"ok","points":10},
@@ -205,6 +205,8 @@
 {"id":"BDA_03","city":"BDA","status":"ok","points":50},
 {"id":"BDA_05","city":"BDA","status":"ok","points":30},
 {"id":"BDA_07","city":"BDA","status":"ok","points":30},
+{"id":"BDA_09","city":"BDA","status":"ok","points":40},
+{"id":"BDA_10","city":"BDA","status":"ok","points":50},
 {"id":"BDA_11","city":"BDA","status":"ok","points":20},
 {"id":"BDA_12","city":"BDA","status":"ok","points":40},
 {"id":"BDA_13","city":"BDA","status":"ok","points":30},
@@ -226,6 +228,7 @@
 {"id":"BDA_30","city":"BDA","status":"ok","points":40},
 {"id":"BDA_31","city":"BDA","status":"ok","points":20},
 {"id":"BDA_32","city":"BDA","status":"ok","points":40},
+{"id":"BDA_34","city":"BDA","status":"ok","points":40},
 {"id":"BDA_35","city":"BDA","status":"ok","points":30},
 {"id":"BDA_36","city":"BDA","status":"ok","points":30},
 {"id":"BDA_37","city":"BDA","status":"ok","points":50},
@@ -4641,7 +4644,7 @@
 "VRS":{"name":"Versailles","lat":48.80571,"lng":2.12807,"count":42,"flag":"🇫🇷","country":"France","continent":"Europe","official":42,"zones":true},
 "VSB":{"name":"Visby","lat":57.41748,"lng":18.59467,"count":3,"flag":"🇸🇪","country":"Suède","continent":"Europe","official":3,"outline":true,"reach":65},
 "WN":{"name":"Vienna","lat":48.20789,"lng":16.36574,"count":56,"flag":"🇦🇹","country":"Autriche","continent":"Europe","official":56,"zones":true},
-"BDA":{"name":"Bermuda","lat":0,"lng":0,"count":35,"flag":"🌍","country":"Ailleurs","continent":"Ailleurs","official":47},
+"BDA":{"name":"Bermuda","lat":0,"lng":0,"count":38,"flag":"🌍","country":"Ailleurs","continent":"Ailleurs","official":47},
 "LAP":{"name":"Lapland","lat":66.98117,"lng":19.77746,"count":82,"flag":"🇸🇪","country":"Suède","continent":"Europe","official":89,"outline":true,"reach":300},
 "STK":{"name":"Stockholm","lat":59.33377,"lng":17.98038,"count":19,"flag":"🇸🇪","country":"Suède","continent":"Europe","official":19,"outline":true,"reach":18}
 }
