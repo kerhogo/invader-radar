@@ -1,5 +1,5 @@
 {
-  "generated": "2026-11-20T13:06:06.748Z",
+  "generated": "2026-11-21T12:50:22.606Z",
   "sources": {
     "siwd": {
       "note": "Space Invaders World Database V06",
@@ -11,13 +11,13 @@
       "note": "0 nouveaux, 0 coords complétées"
     },
     "invanim": {
-      "date": "2026-11-20",
+      "date": "2026-11-21",
       "count": 49,
       "note": "positions de dernier recours, de précision variable (souvent une grille d'environ 20 m)"
     },
     "spotter": {
-      "date": "2026-11-20",
-      "count": 4553,
+      "date": "2026-11-21",
+      "count": 4554,
       "cities": 91,
       "perCity": {
         "SPACE": 2,
@@ -33,7 +33,7 @@
         "BXL": 42,
         "CHAR": 1,
         "RDU": 6,
-        "BDA": 38,
+        "BDA": 39,
         "BT": 11,
         "POTI": 53,
         "GRU": 3,
@@ -114,8 +114,8 @@
       }
     },
     "stats": {
-      "total": 4553,
-      "actifs": 3073,
+      "total": 4554,
+      "actifs": 3074,
       "detruits": 1480,
       "localises": 4383,
       "interieur": 23,

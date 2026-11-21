@@ -1,5 +1,7 @@
 {
 "entries":[
+{"date":"2026-11-21","type":"new_invader","id":"BDA_33","city":"BDA"},
+{"date":"2026-11-20","type":"spotter_news","text":"Ajout de plusieurs SI de l'invasion des Bermudes : BDA_09, BDA_10, BDA_33 et BDA_34"},
 {"date":"2026-11-20","type":"spotter_news","text":"Ajout de plusieurs SI de l'invasion des Bermudes : BDA_09, BDA_10 et BDA_34"},
 {"date":"2026-11-20","type":"new_invader","id":"BDA_09","city":"BDA"},
 {"date":"2026-11-20","type":"new_invader","id":"BDA_10","city":"BDA"},
