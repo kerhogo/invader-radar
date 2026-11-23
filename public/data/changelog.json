@@ -1,5 +1,12 @@
 {
 "entries":[
+{"date":"2026-11-23","type":"status_change","id":"MLB_17","city":"MLB","from":"ok","to":"destroyed"},
+{"date":"2026-11-23","type":"status_change","id":"PRT_12","city":"PRT","from":"ok","to":"destroyed"},
+{"date":"2026-11-23","type":"status_change","id":"PRT_19","city":"PRT","zone":"Perth","from":"ok","to":"destroyed"},
+{"date":"2026-11-23","type":"new_invader","id":"BDA_08","city":"BDA"},
+{"date":"2026-11-23","type":"new_invader","id":"BDA_17","city":"BDA"},
+{"date":"2026-11-23","type":"new_invader","id":"BDA_46","city":"BDA"},
+{"date":"2026-11-22","type":"spotter_news","text":"Ajout de plusieurs SI de l'invasion des Bermudes : BDA_08, BDA_17 et BDA_46"},
 {"date":"2026-11-22","type":"new_invader","id":"BDA_04","city":"BDA"},
 {"date":"2026-11-22","type":"new_invader","id":"BDA_06","city":"BDA"},
 {"date":"2026-11-22","type":"new_invader","id":"BDA_39","city":"BDA"},
