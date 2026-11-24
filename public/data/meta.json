@@ -1,5 +1,5 @@
 {
-  "generated": "2026-11-23T14:51:44.906Z",
+  "generated": "2026-11-24T15:03:02.968Z",
   "sources": {
     "siwd": {
       "note": "Space Invaders World Database V06",
@@ -7,16 +7,16 @@
       "count": 4406
     },
     "osm": {
-      "date": "2026-11-23",
+      "date": "2026-11-24",
       "note": "0 nouveaux, 0 coords complétées"
     },
     "invanim": {
-      "date": "2026-11-23",
+      "date": "2026-11-24",
       "count": 49,
       "note": "positions de dernier recours, de précision variable (souvent une grille d'environ 20 m)"
     },
     "spotter": {
-      "date": "2026-11-23",
+      "date": "2026-11-24",
       "count": 4560,
       "cities": 91,
       "perCity": {
