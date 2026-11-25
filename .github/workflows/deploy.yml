@@ -21,7 +21,7 @@ jobs:
     timeout-minutes: 10
     environment:
       name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+      url: ${{ steps.first-try.outputs.page_url || steps.retry.outputs.page_url }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -40,5 +40,13 @@ jobs:
       - uses: actions/upload-pages-artifact@v5
         with:
           path: dist
-      - id: deployment
+      # L API des artefacts met parfois quelques instants a voir l archive qui vient d etre envoyee
+      # (« No artifacts named github-pages ») : une seconde tentative apres une pause suffit.
+      - id: first-try
+        uses: actions/deploy-pages@v5
+        continue-on-error: true
+      - if: steps.first-try.outcome == 'failure'
+        run: sleep 60
+      - id: retry
+        if: steps.first-try.outcome == 'failure'
         uses: actions/deploy-pages@v5
