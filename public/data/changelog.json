@@ -1,5 +1,8 @@
 {
 "entries":[
+{"date":"2026-11-25","type":"new_invader","id":"LAP_18","city":"LAP"},
+{"date":"2026-11-25","type":"new_invader","id":"LAP_69","city":"LAP"},
+{"date":"2026-11-24","type":"spotter_news","text":"Ajout de 2 SI de l'invasion de la Laponie : LAP_18 et LAP_69"},
 {"date":"2026-11-23","type":"status_change","id":"MLB_17","city":"MLB","from":"ok","to":"destroyed"},
 {"date":"2026-11-23","type":"status_change","id":"PRT_12","city":"PRT","from":"ok","to":"destroyed"},
 {"date":"2026-11-23","type":"status_change","id":"PRT_19","city":"PRT","zone":"Perth","from":"ok","to":"destroyed"},
