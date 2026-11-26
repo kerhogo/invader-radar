@@ -1,5 +1,5 @@
 {
-"generated":"2026-11-25T14:36:03.747Z",
+"generated":"2026-11-26T14:04:48.692Z",
 "items":[
 {"id":"AIX_01","city":"AIX","lat":43.5285840236,"lng":5.4431859342,"status":"ok","points":10},
 {"id":"AIX_02","city":"AIX","lat":43.5308733553,"lng":5.447449928,"status":"ok","points":10},
@@ -993,7 +993,7 @@
 {"id":"KAT_04","city":"KAT","lat":27.70333,"lng":85.308259,"status":"ok","points":20,"z1":"Kathmandu-23"},
 {"id":"KAT_05","city":"KAT","lat":27.707332413,"lng":85.3098172329,"status":"ok","points":10,"z1":"Kathmandu-25"},
 {"id":"KAT_06","city":"KAT","lat":27.701814,"lng":85.307931,"status":"destroyed","points":10,"z1":"Kathmandu-23"},
-{"id":"KAT_07","city":"KAT","lat":27.7085045062,"lng":85.3075535599,"status":"destroyed","points":30,"z1":"Kathmandu-18"},
+{"id":"KAT_07","city":"KAT","lat":27.7085045062,"lng":85.3075535599,"status":"ok","points":30,"z1":"Kathmandu-18"},
 {"id":"KAT_08","city":"KAT","lat":27.7077407686,"lng":85.3073461379,"status":"destroyed","points":20,"z1":"Kathmandu-18"},
 {"id":"KAT_09","city":"KAT","lat":27.7058150736,"lng":85.3095874258,"status":"ok","points":20,"z1":"Kathmandu-24"},
 {"id":"KAT_10","city":"KAT","lat":27.7070973645,"lng":85.3114705024,"status":"ok","points":20,"z1":"Kathmandu-25"},
@@ -1004,7 +1004,7 @@
 {"id":"KAT_15","city":"KAT","lat":27.7094549947,"lng":85.3104247677,"status":"ok","points":20,"z1":"Kathmandu-17"},
 {"id":"KAT_16","city":"KAT","lat":27.7003838809,"lng":85.3075078597,"status":"ok","points":10,"z1":"Kathmandu-23"},
 {"id":"KAT_17","city":"KAT","lat":27.6992150418,"lng":85.3071742408,"status":"ok","points":10,"z1":"Kathmandu-21"},
-{"id":"KAT_18","city":"KAT","lat":27.7155155247,"lng":85.2894253452,"status":"destroyed","points":30,"z1":"Kathmandu-15"},
+{"id":"KAT_18","city":"KAT","lat":27.7155155247,"lng":85.2894253452,"status":"ok","points":30,"z1":"Kathmandu-15"},
 {"id":"KAT_19","city":"KAT","lat":27.714145,"lng":85.296647,"status":"destroyed","points":10,"z1":"Kathmandu-15"},
 {"id":"KAT_20","city":"KAT","lat":27.718136,"lng":85.310087,"status":"destroyed","points":20,"z1":"Kathmandu-16"},
 {"id":"KAT_21","city":"KAT","lat":27.719582,"lng":85.312662,"status":"destroyed","points":10,"z1":"Kathmandu-26"},
@@ -1313,6 +1313,7 @@
 {"id":"LAP_57","city":"LAP","status":"ok","points":30},
 {"id":"LAP_58","city":"LAP","status":"ok","points":40},
 {"id":"LAP_59","city":"LAP","status":"ok","points":50},
+{"id":"LAP_60","city":"LAP","status":"ok","points":30},
 {"id":"LAP_62","city":"LAP","status":"ok","points":50},
 {"id":"LAP_63","city":"LAP","status":"ok","points":20},
 {"id":"LAP_64","city":"LAP","status":"ok","points":30},
@@ -4654,7 +4655,7 @@
 "VSB":{"name":"Visby","lat":57.41748,"lng":18.59467,"count":3,"flag":"🇸🇪","country":"Suède","continent":"Europe","official":3,"outline":true,"reach":65},
 "WN":{"name":"Vienna","lat":48.20789,"lng":16.36574,"count":56,"flag":"🇦🇹","country":"Autriche","continent":"Europe","official":56,"zones":true},
 "BDA":{"name":"Bermuda","lat":0,"lng":0,"count":45,"flag":"🌍","country":"Ailleurs","continent":"Ailleurs","official":47},
-"LAP":{"name":"Lapland","lat":66.98117,"lng":19.77746,"count":84,"flag":"🇸🇪","country":"Suède","continent":"Europe","official":89,"outline":true,"reach":300},
+"LAP":{"name":"Lapland","lat":66.98117,"lng":19.77746,"count":85,"flag":"🇸🇪","country":"Suède","continent":"Europe","official":89,"outline":true,"reach":300},
 "STK":{"name":"Stockholm","lat":59.33377,"lng":17.98038,"count":19,"flag":"🇸🇪","country":"Suède","continent":"Europe","official":19,"outline":true,"reach":18}
 }
 }
